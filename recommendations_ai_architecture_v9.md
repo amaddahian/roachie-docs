@@ -8,9 +8,9 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 |----|----------|----------|-------------|
 | R1 | P0 | Reliability | Structured output / constrained decoding — enforce JSON via provider-native mechanisms |
 | R2 | P0 | Cost/Performance | Prompt token budget management — system prompt too large, no per-provider limits |
-| R3 | P0 | Completeness | Doc RAG missing Ollama embeddings — offline users get zero doc retrieval |
+| R3 | P0 | Completeness | ~~Doc RAG missing Ollama embeddings~~ **FIXED** (on feature/doc-rag branch) |
 | R4 | P1 | Reliability | Context window overflow protection — no hard limit enforced before API call |
-| R5 | P1 | Correctness | Response normalization — native tool-call path hardcodes `needs_followup: false` |
+| R5 | P1 | Correctness | ~~Response normalization~~ **FIXED** — native tool-call path now extracts needs_followup |
 | R6 | P1 | Performance | Deduplicate embedding calls — `_embed_query()` called twice per query |
 | R7 | P1 | UX | Conversation memory compression — FIFO eviction loses connection context |
 | R8 | P2 | Performance | Parallel tool execution — independent commands run sequentially |
@@ -28,24 +28,24 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 | ID | Priority | Status | Description |
 |----|----------|--------|-------------|
 | v8-R1 | P1 | **FIXED** | NL pipeline lacks tool version awareness |
-| v8-R2 | P0 | Open | Batch metrics prefix uses predictable PID-only naming |
-| v8-R3 | P1 | Open | Output masking only covers first 500 chars before follow-up context |
-| v8-R4 | P1 | Open | Batch follow-up truncation hardcoded to 2000, not using constant |
+| v8-R2 | P0 | **FIXED** | Batch metrics prefix uses predictable PID-only naming |
+| v8-R3 | P1 | **FIXED** | Output masking only covers first 500 chars before follow-up context |
+| v8-R4 | P1 | **FIXED** | Batch follow-up truncation hardcoded to 2000, not using constant |
 | v8-R5 | P1 | Open | Context trimming doesn't re-estimate tokens after prepending summary |
 | v8-R6 | P1 | Open | Ollama silently ignores tool calling parameter |
 | v8-R7 | P1 | Open | Ollama missing error detection on empty/malformed responses |
 | v8-R8 | P1 | Open | Vertex gcloud token not validated before API call |
-| v8-R9 | P1 | Open | 5 constants in `llm_config.sh` not overridable via env vars |
+| v8-R9 | P1 | **FIXED** | 5 constants in `llm_config.sh` not overridable via env vars |
 | v8-R10 | P2 | Open | Retry backoff missing jitter (thundering herd risk) |
 | v8-R11 | P2 | Open | Ollama token counts never captured to metrics |
 | v8-R12 | P2 | Open | Duplicate request JSON building in streaming vs non-streaming |
 | v8-R13 | P2 | Open | OpenAI tool call merging is O(n^2) via repeated jq |
-| v8-R14 | P2 | Open | Ollama embedding check hardcodes `localhost:11434` instead of `_NL_OLLAMA_HOST` |
+| v8-R14 | P2 | **FIXED** | Ollama embedding check hardcodes `localhost:11434` instead of `_NL_OLLAMA_HOST` |
 | v8-R15 | P2 | Open | `_NL_OUTPUT_TRUNCATE_CHARS=2000` too small for agent follow-up |
 | v8-R16 | P2 | Open | 6 functions with zero unit test coverage |
 | v8-R17 | P2 | Open | `test_llm_extract.sh` has always-pass logic for fenced JSON |
 | v8-R18 | P2 | Open | `test_llm_metrics.sh` silently skips jq-dependent tests without SKIP status |
-| v8-R19 | P2 | Open | Feedback CSV user comments not escaped via `_csv_escape()` |
+| v8-R19 | P2 | **FIXED** | Feedback CSV user comments not escaped via `_csv_escape()` |
 | v8-R20 | P2 | Open | Duplicate error-handling pattern in `_call_llm_api_once` (4x rate-limit blocks) |
 | v8-R21 | P3 | Open | Streaming progress dots not cleared on early error (< 5 chunks) |
 | v8-R22 | P3 | Open | "no reasoning" literal in message history when empty |
@@ -60,18 +60,26 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 |------|-------------|----------------|
 | Ceph `--top` hallucination | Expanded ceph storage guidance in system prompt; tightened generic flag guidance to require checking `--help` docs | `llm_prompt.sh:1252, 1321-1325` |
 | Failure DB error output | Store actual command error output (`_NL_LAST_CMD_OUTPUT`) in persistent failure DB with ANSI stripping and sanitization | `llm_metrics.sh`, `llm_assistant.sh`, `test_llm_metrics.sh` (+2 tests) |
+| v8-R9: Config env overrides | All 10 constants in `llm_config.sh` now overridable via env vars | `llm_config.sh` |
+| v8-R2: Batch metrics collision | Metrics prefix includes PID + timestamp + RANDOM (was PID-only) | `bin/roachie-batch` |
+| v8-R3: Output masking gap | PII masking now covers full `_NL_OUTPUT_TRUNCATE_CHARS` (was hardcoded 500) | `llm_assistant.sh` |
+| v8-R4: Batch truncation | Follow-up truncation uses `_NL_OUTPUT_TRUNCATE_CHARS` constant (was hardcoded 2000) | `bin/roachie-batch` |
+| v8-R14: Ollama host | Embedding detection uses `_NL_OLLAMA_HOST` (was hardcoded `localhost:11434`) | `llm_prompt.sh` |
+| v8-R19: CSV escaping | Verified already fixed — both JSONL (jq --arg) and CSV (_csv_escape) paths escape comments | `llm_metrics.sh` |
+| v9-R3: Ollama doc embeddings | Generated 14 chunks x nomic-embed-text 768d; added startup warning for missing embeddings | `tools/embeddings/docs/`, `llm_assistant.sh` |
+| v9-R5: Tool-call followup | Native tool-call path extracts `needs_followup` from LLM text via pattern matching (all 3 providers) | `llm_providers.sh` |
 
 ---
 
 ## Table 4: Combined Priority Summary
 
-| Priority | v8 Open | v9 New | Total |
-|----------|---------|--------|-------|
-| **P0** | 1 | 3 | **4** |
-| **P1** | 7 | 4 | **11** |
-| **P2** | 10 | 4 | **14** |
-| **P3** | 5 | 1 | **6** |
-| **Total** | **23** | **12** | **35** |
+| Priority | v8 Open | v8 Fixed | v9 Open | v9 Fixed | Total Open |
+|----------|---------|----------|---------|----------|------------|
+| **P0** | 0 | 1 | 2 | 1 | **2** |
+| **P1** | 4 | 3 | 3 | 1 | **7** |
+| **P2** | 7 | 3 | 4 | 0 | **11** |
+| **P3** | 5 | 0 | 1 | 0 | **6** |
+| **Total** | **16** | **7** | **10** | **2** | **26** |
 
 ---
 
