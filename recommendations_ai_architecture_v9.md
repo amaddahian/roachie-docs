@@ -6,17 +6,17 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 
 | ID | Priority | Category | Description |
 |----|----------|----------|-------------|
-| R1 | P0 | Reliability | Structured output / constrained decoding — enforce JSON via provider-native mechanisms |
+| R1 | P0 | Reliability | ~~Structured output / constrained decoding~~ **FIXED** — Gemini now uses `responseMimeType: "application/json"` (OpenAI/Ollama already had it; Anthropic has no API support) |
 | R2 | P0 | Cost/Performance | Prompt token budget management — system prompt too large, no per-provider limits |
 | R3 | P0 | Completeness | ~~Doc RAG missing Ollama embeddings~~ **FIXED** (on feature/doc-rag branch) |
-| R4 | P1 | Reliability | Context window overflow protection — no hard limit enforced before API call |
+| R4 | P1 | Reliability | ~~Context window overflow protection~~ **FIXED** — provider-aware `_llm_context_limit()` with dynamic trim at 80% of limit |
 | R5 | P1 | Correctness | ~~Response normalization~~ **FIXED** — native tool-call path now extracts needs_followup |
-| R6 | P1 | Performance | Deduplicate embedding calls — `_embed_query()` called twice per query |
-| R7 | P1 | UX | Conversation memory compression — FIFO eviction loses connection context |
+| R6 | P1 | Performance | ~~Deduplicate embedding calls~~ **FIXED** — query embedding computed once, passed via `$4` param + cached in temp file |
+| R7 | P1 | UX | ~~Conversation memory compression~~ **FIXED** — sticky context extracts cluster/database/tenant/host from evicted turns |
 | R8 | P2 | Performance | Parallel tool execution — independent commands run sequentially |
 | R9 | P2 | Testing | Structured evaluation harness — no end-to-end query-to-command accuracy testing |
 | R10 | P2 | Architecture | Tool schema versioning — `tools/schemas/tools.json` not version-aware |
-| R11 | P2 | Observability | Per-query trace ID — no correlation across enrichment, API, execution phases |
+| R11 | P2 | Observability | ~~Per-query trace ID~~ **FIXED** — 8-char hex ID auto-prefixed in debug logs and appended to CSV metrics |
 | R12 | P3 | Maintainability | Prompt template externalization — 1,807-line module mixes bash and prompt text |
 
 **Total: 12 new recommendations** (P0: 3, P1: 4, P2: 4, P3: 1)
@@ -31,26 +31,26 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 | v8-R2 | P0 | **FIXED** | Batch metrics prefix uses predictable PID-only naming |
 | v8-R3 | P1 | **FIXED** | Output masking only covers first 500 chars before follow-up context |
 | v8-R4 | P1 | **FIXED** | Batch follow-up truncation hardcoded to 2000, not using constant |
-| v8-R5 | P1 | Open | Context trimming doesn't re-estimate tokens after prepending summary |
-| v8-R6 | P1 | Open | Ollama silently ignores tool calling parameter |
-| v8-R7 | P1 | Open | Ollama missing error detection on empty/malformed responses |
-| v8-R8 | P1 | Open | Vertex gcloud token not validated before API call |
+| v8-R5 | P1 | **FIXED** | Context trimming doesn't re-estimate tokens after prepending summary |
+| v8-R6 | P1 | **FIXED** | Ollama silently ignores tool calling parameter |
+| v8-R7 | P1 | **FIXED** | Ollama missing error detection on empty/malformed responses |
+| v8-R8 | P1 | **FIXED** | Vertex gcloud token not validated before API call |
 | v8-R9 | P1 | **FIXED** | 5 constants in `llm_config.sh` not overridable via env vars |
-| v8-R10 | P2 | Open | Retry backoff missing jitter (thundering herd risk) |
-| v8-R11 | P2 | Open | Ollama token counts never captured to metrics |
-| v8-R12 | P2 | Open | Duplicate request JSON building in streaming vs non-streaming |
-| v8-R13 | P2 | Open | OpenAI tool call merging is O(n^2) via repeated jq |
+| v8-R10 | P2 | **FIXED** | Retry backoff missing jitter (thundering herd risk) |
+| v8-R11 | P2 | **FIXED** | Ollama token counts already captured (false positive — `_write_token_counts` called at line 830) |
+| v8-R12 | P2 | **FIXED** | Deduplicate request JSON — `_build_anthropic_request()` and `_build_gemini_request()` shared builders |
+| v8-R13 | P2 | **FIXED** | OpenAI tool call O(n^2) → O(n) — batch collect deltas in array, single jq merge |
 | v8-R14 | P2 | **FIXED** | Ollama embedding check hardcodes `localhost:11434` instead of `_NL_OLLAMA_HOST` |
-| v8-R15 | P2 | Open | `_NL_OUTPUT_TRUNCATE_CHARS=2000` too small for agent follow-up |
-| v8-R16 | P2 | Open | 6 functions with zero unit test coverage |
-| v8-R17 | P2 | Open | `test_llm_extract.sh` has always-pass logic for fenced JSON |
-| v8-R18 | P2 | Open | `test_llm_metrics.sh` silently skips jq-dependent tests without SKIP status |
+| v8-R15 | P2 | **FIXED** | `_NL_OUTPUT_TRUNCATE_CHARS=2000` too small for agent follow-up |
+| v8-R16 | P2 | **FIXED** | 6 functions with zero unit test coverage |
+| v8-R17 | P2 | **FIXED** | `test_llm_extract.sh` has always-pass logic for fenced JSON |
+| v8-R18 | P2 | **FIXED** | `test_llm_metrics.sh` silently skips jq-dependent tests without SKIP status |
 | v8-R19 | P2 | **FIXED** | Feedback CSV user comments not escaped via `_csv_escape()` |
-| v8-R20 | P2 | Open | Duplicate error-handling pattern in `_call_llm_api_once` (4x rate-limit blocks) |
-| v8-R21 | P3 | Open | Streaming progress dots not cleared on early error (< 5 chunks) |
-| v8-R22 | P3 | Open | "no reasoning" literal in message history when empty |
-| v8-R23 | P3 | Open | No debug log when semantic matching falls back to regex-only |
-| v8-R24 | P3 | Open | `ROACHIE_BATCH` global flag not documented in CLAUDE.md |
+| v8-R20 | P2 | **FIXED** | Duplicate error-handling pattern in `_call_llm_api_once` (4x rate-limit blocks) |
+| v8-R21 | P3 | **FIXED** | Streaming progress dots not cleared on early error (< 5 chunks) |
+| v8-R22 | P3 | **FIXED** | "no reasoning" literal in message history when empty |
+| v8-R23 | P3 | **FIXED** | No debug log when semantic matching falls back to regex-only |
+| v8-R24 | P3 | **FIXED** | `ROACHIE_BATCH` global flag not documented in CLAUDE.md |
 
 ---
 
@@ -68,6 +68,28 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 | v8-R19: CSV escaping | Verified already fixed — both JSONL (jq --arg) and CSV (_csv_escape) paths escape comments | `llm_metrics.sh` |
 | v9-R3: Ollama doc embeddings | Generated 14 chunks x nomic-embed-text 768d; added startup warning for missing embeddings | `tools/embeddings/docs/`, `llm_assistant.sh` |
 | v9-R5: Tool-call followup | Native tool-call path extracts `needs_followup` from LLM text via pattern matching (all 3 providers) | `llm_providers.sh` |
+| v9-R1: Gemini structured output | Added `responseMimeType: "application/json"` to all 4 Gemini request paths (stream/non-stream x with/without tools) | `providers/gemini.sh` |
+| v8-R5: Context re-estimation | Re-estimate `_est_chars`/`_est_tokens` after prepending summary of dropped turns | `llm_assistant.sh` |
+| v8-R6: Ollama tools warning | Emit one-time warning when `NL_NATIVE_TOOLS=1` with Ollama (not supported), instead of silently ignoring | `llm_assistant.sh` |
+| v8-R7: Ollama error detection | Comprehensive error handling in `_extract_ollama_response()`: empty response, API errors, malformed JSON, empty content — returns structured error JSON | `providers/ollama.sh`, `tests/unit/test_llm_extract.sh` |
+| v8-R8: Vertex token validation | Validate gcloud CLI exists and token length before Vertex API call | `providers/vertex.sh` |
+| v8-R10: Retry jitter | Add 0-25% jitter to retry backoff delay to prevent thundering herd | `llm_providers.sh` |
+| v8-R11: Ollama token counts | Verified already working — `_write_token_counts` called with `prompt_eval_count`/`eval_count` | `llm_providers.sh:830` |
+| v8-R15: Output truncation | Increase default 2000→4000 chars, make configurable via `NL_OUTPUT_TRUNCATE_CHARS` env var | `llm_config.sh` |
+| v8-R16: Test coverage | New `test_llm_utils.sh` (16 tests) covering `_secure_mktemp`, `_write_token_counts`, `_llm_model_name`, `_nl_resolve_resource`, `_nl_get_fallback_providers` | `tests/unit/test_llm_utils.sh` |
+| v8-R17: Fenced JSON test | Replace always-pass logic with strict `assert_eq` for exact JSON extraction | `tests/unit/test_llm_extract.sh` |
+| v8-R18: Skip status | Add `skip_test()` to test helpers with `SKIP_COUNT`; metrics test reports skips properly | `tests/unit/test_helpers.sh`, `tests/unit/test_llm_metrics.sh` |
+| v8-R21: Streaming dots | Clear progress dots on any `chunk_count > 0` (was `>= 5`) in all 3 streaming providers | `providers/anthropic.sh`, `providers/openai.sh`, `providers/gemini.sh` |
+| v9-R6: Deduplicate embeddings | Compute query embedding once in orchestrator, pass via `$4` param to `_semantic_match_tools`, cache in temp file for doc RAG reuse | `llm_prompt.sh` |
+| v8-R20: Error handling consolidation | Extract `_check_api_error()` helper replacing 4 duplicate rate-limit/error blocks across Vertex, Anthropic, OpenAI, Gemini | `llm_providers.sh` |
+| v8-R22: History literal | Replace `"no reasoning"` with conditional expansion — empty reasoning omitted from history | `llm_assistant.sh` |
+| v8-R23: Semantic fallback debug | Add `_nl_debug` log when semantic matching unavailable or returns no results | `llm_prompt.sh` |
+| v8-R24: CLAUDE.md env vars | Document `ROACHIE_BATCH` and 7 other NL env vars in CLAUDE.md | `CLAUDE.md` |
+| v9-R4: Context overflow | Provider-aware `_llm_context_limit()` returns per-provider token limits; dynamic trim threshold at 80% replaces static 100k | `llm_config.sh`, `llm_assistant.sh` |
+| v9-R7: Sticky context | Extract cluster/database/tenant/host from evicted history turns via jq regex capture; prepend as session context | `llm_assistant.sh` |
+| v8-R12: Request dedup | Extract `_build_anthropic_request()` and `_build_gemini_request()`/`_gemini_convert_messages()` shared builders eliminating ~100 lines of duplication | `providers/anthropic.sh`, `providers/gemini.sh` |
+| v8-R13: O(n) tool merge | Collect OpenAI streaming tool call deltas in bash array, single jq batch merge at end (was O(n^2) per-chunk jq) | `providers/openai.sh` |
+| v9-R11: Trace ID | Generate 8-char hex trace ID per query; `_nl_debug` auto-prefixes all log lines; trace_id column added to CSV metrics | `llm_assistant.sh`, `llm_metrics.sh`, `bin/roachman` |
 
 ---
 
@@ -75,11 +97,11 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 
 | Priority | v8 Open | v8 Fixed | v9 Open | v9 Fixed | Total Open |
 |----------|---------|----------|---------|----------|------------|
-| **P0** | 0 | 1 | 2 | 1 | **2** |
-| **P1** | 4 | 3 | 3 | 1 | **7** |
-| **P2** | 7 | 3 | 4 | 0 | **11** |
-| **P3** | 5 | 0 | 1 | 0 | **6** |
-| **Total** | **16** | **7** | **10** | **2** | **26** |
+| **P0** | 0 | 1 | 1 | 2 | **1** |
+| **P1** | 0 | 7 | 0 | 4 | **0** |
+| **P2** | 0 | 10 | 3 | 1 | **3** |
+| **P3** | 0 | 4 | 1 | 0 | **1** |
+| **Total** | **0** | **22** | **5** | **7** | **5** |
 
 ---
 
