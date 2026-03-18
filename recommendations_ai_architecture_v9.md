@@ -14,10 +14,10 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 | R6 | P1 | Performance | ~~Deduplicate embedding calls~~ **FIXED** — query embedding computed once, passed via `$4` param + cached in temp file |
 | R7 | P1 | UX | ~~Conversation memory compression~~ **FIXED** — sticky context extracts cluster/database/tenant/host from evicted turns |
 | R8 | P2 | Performance | Parallel tool execution — independent commands run sequentially |
-| R9 | P2 | Testing | Structured evaluation harness — no end-to-end query-to-command accuracy testing |
-| R10 | P2 | Architecture | Tool schema versioning — `tools/schemas/tools.json` not version-aware |
+| R9 | P2 | Testing | ~~Structured evaluation harness~~ **FIXED** — 55-query dataset with per-provider accuracy testing |
+| R10 | P2 | Architecture | ~~Tool schema versioning~~ **FIXED** — `_nl_load_tool_schemas` uses `_nl_resolve_resource` for version overrides |
 | R11 | P2 | Observability | ~~Per-query trace ID~~ **FIXED** — 8-char hex ID auto-prefixed in debug logs and appended to CSV metrics |
-| R12 | P3 | Maintainability | Prompt template externalization — 1,807-line module mixes bash and prompt text |
+| R12 | P3 | Maintainability | ~~Prompt template externalization~~ **FIXED** — 6 templates in `tools/utils/prompts/`, 409 lines moved out of `llm_prompt.sh` |
 
 **Total: 12 new recommendations** (P0: 3, P1: 4, P2: 4, P3: 1)
 
@@ -90,6 +90,9 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 | v8-R12: Request dedup | Extract `_build_anthropic_request()` and `_build_gemini_request()`/`_gemini_convert_messages()` shared builders eliminating ~100 lines of duplication | `providers/anthropic.sh`, `providers/gemini.sh` |
 | v8-R13: O(n) tool merge | Collect OpenAI streaming tool call deltas in bash array, single jq batch merge at end (was O(n^2) per-chunk jq) | `providers/openai.sh` |
 | v9-R11: Trace ID | Generate 8-char hex trace ID per query; `_nl_debug` auto-prefixes all log lines; trace_id column added to CSV metrics | `llm_assistant.sh`, `llm_metrics.sh`, `bin/roachman` |
+| v9-R9: Eval harness | 55-query evaluation dataset (TSV) covering all tool categories + flag confusion tests; runner supports `--provider` and `--limit`, saves per-query results | `tests/evaluation/eval_dataset.tsv`, `tests/evaluation/run_eval.sh` |
+| v9-R10: Schema versioning | `_nl_load_tool_schemas()` uses `_nl_resolve_resource()` for version-specific schema overrides (`schemas/<version>/tools.json`) | `llm_prompt.sh` |
+| v9-R12: Prompt templates | Extract 6 prompt sections to `tools/utils/prompts/*.txt` (409 lines); new `_nl_load_prompt_template()` with `{{TOOLS_DIR}}` substitution | `llm_prompt.sh`, `tools/utils/prompts/` |
 
 ---
 
@@ -99,9 +102,9 @@ Review of the roachie NL/LLM subsystem (~6,650 lines across 13 AI modules + 5 pr
 |----------|---------|----------|---------|----------|------------|
 | **P0** | 0 | 1 | 1 | 2 | **1** |
 | **P1** | 0 | 7 | 0 | 4 | **0** |
-| **P2** | 0 | 10 | 3 | 1 | **3** |
-| **P3** | 0 | 4 | 1 | 0 | **1** |
-| **Total** | **0** | **22** | **5** | **7** | **5** |
+| **P2** | 0 | 10 | 1 | 3 | **1** |
+| **P3** | 0 | 4 | 0 | 1 | **0** |
+| **Total** | **0** | **22** | **2** | **10** | **2** |
 
 ---
 
