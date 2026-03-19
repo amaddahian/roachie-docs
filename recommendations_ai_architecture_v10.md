@@ -16,21 +16,21 @@ Review of the roachie NL/LLM subsystem following completion of v8/v9 review cycl
 | R8 | P1 | Error handling | **FIXED** Silent jq failure on partial tool arguments — connection drop during streaming loses tool args silently |
 | R9 | P2 | Testing | Zero test coverage for Doc RAG and reflexion features (deployed but untested) |
 | R10 | P2 | Testing | No tests for sticky context, trace IDs, or multi-turn memory persistence |
-| R11 | P2 | Testing | Evaluation harness has no per-query timeout — hung API call blocks entire eval run |
-| R12 | P2 | Consistency | Different error JSON structures across providers (Gemini missing `type` field, Ollama has none) |
-| R13 | P2 | Consistency | Inconsistent empty response detection — OpenAI doesn't check tool calls, Gemini doesn't check text |
+| R11 | P2 | Testing | **N/A** Evaluation harness has no per-query timeout — eval harness only on unmerged branch |
+| R12 | P2 | Consistency | **FIXED** Different error JSON structures across providers (Gemini missing `type` field, Ollama has none) |
+| R13 | P2 | Consistency | **FIXED** Inconsistent empty response detection — OpenAI doesn't check tool calls, Gemini doesn't check text |
 | R14 | P2 | Performance | **FIXED** Multiple `ollama list` calls during provider detection — 5+ subprocess invocations per selection |
-| R15 | P2 | Performance | Gemini streaming buffers entire SSE response in memory — unbounded growth on large responses |
+| R15 | P2 | Performance | **FIXED** Gemini streaming buffers entire SSE response in memory — unbounded growth on large responses |
 | R16 | P2 | Concurrency | **FIXED** Metrics `_curl_rc` temp file not unique per invocation — concurrent calls overwrite each other |
-| R17 | P2 | Concurrency | Ollama startup race — concurrent calls both try to start `ollama serve`, fighting for port |
+| R17 | P2 | Concurrency | **FIXED** Ollama startup race — concurrent calls both try to start `ollama serve`, fighting for port |
 | R18 | P2 | Error handling | **FIXED** Schema context failure silently ignored — no user warning when schema fetch fails |
 | R19 | P2 | Error handling | **FIXED** Corrupted `tools.json` schema file causes silent fallback to no native tool calling |
 | R20 | P2 | Security | No test for prompt injection via reflexion command output fed back to LLM |
 | R21 | P2 | Testing | RBAC tests only validate `_check_rbac` in isolation, not integrated with command execution pipeline |
 | R22 | P2 | Testing | Missing negative tests for malformed LLM responses (string vs boolean, object vs array) |
-| R23 | P3 | Dead code | Unused `_sse_raw` variable in Gemini streaming, unused `_ollama_pid` in provider startup |
-| R24 | P3 | Config | Ollama startup wait timeout hardcoded to 15s, max retries hardcoded to 1 — not configurable |
-| R25 | P3 | Maintenance | Dual-parameter tool rules duplicated across 3+ template files with slight variations |
+| R23 | P3 | Dead code | **FIXED** Unused `_sse_raw` variable in Gemini streaming, unused `_ollama_pid` in provider startup |
+| R24 | P3 | Config | **FIXED** Ollama startup wait timeout hardcoded to 15s, max retries hardcoded to 1 — not configurable |
+| R25 | P3 | Maintenance | **N/A** Dual-parameter tool rules duplicated across 3+ template files — template files only on unmerged branch |
 
 **Total: 25 recommendations** (P1: 8, P2: 14, P3: 3)
 
@@ -171,7 +171,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R11 — Evaluation Harness Missing Per-Query Timeout (P2)
+### R11 — Evaluation Harness Missing Per-Query Timeout (P2) — **N/A** (eval harness on unmerged branch)
 
 **Problem:** `run_eval.sh` calls `_call_llm_api` with no timeout wrapper. A hung API call blocks the entire evaluation run.
 
@@ -181,7 +181,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R12 — Inconsistent Error JSON Across Providers (P2)
+### R12 — Inconsistent Error JSON Across Providers (P2) — **FIXED**
 
 **Problem:** Streaming error responses differ:
 - Anthropic/OpenAI: `{"error":{"type":"streaming_error","message":"..."}}`
@@ -192,7 +192,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R13 — Inconsistent Empty Response Detection (P2)
+### R13 — Inconsistent Empty Response Detection (P2) — **FIXED**
 
 **Problem:** Empty response conditions differ across providers:
 - Anthropic: checks text AND tool_use
@@ -213,7 +213,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R15 — Unbounded Gemini SSE Buffer (P2)
+### R15 — Unbounded Gemini SSE Buffer (P2) — **FIXED**
 
 **Problem:** `_sse_buffer+="${line}"$'\n'` accumulates the entire SSE stream in memory. For large responses, this causes memory pressure.
 
@@ -233,7 +233,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R17 — Ollama Startup Race (P2)
+### R17 — Ollama Startup Race (P2) — **FIXED**
 
 **Problem:** Concurrent ollama calls both detect server is down and both start `ollama serve`, causing port conflicts.
 
@@ -289,7 +289,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R23 — Dead Code (P3)
+### R23 — Dead Code (P3) — **FIXED**
 
 **Problem:** `_sse_raw` declared but unused in `gemini.sh:150`. `_ollama_pid` assigned but unused in `llm_providers.sh:56`.
 
@@ -297,7 +297,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R24 — Hardcoded Timeouts (P3)
+### R24 — Hardcoded Timeouts (P3) — **FIXED**
 
 **Problem:** Ollama startup wait (15s) and max API retries (1) are hardcoded without env overrides.
 
@@ -307,7 +307,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R25 — Duplicated Parameter Rules (P3)
+### R25 — Duplicated Parameter Rules (P3) — **N/A** (template files on unmerged branch)
 
 **Problem:** Dual-parameter tool rules appear in `parameter_rules.txt`, `tool_specific_rules.txt`, and `tool_notes.txt` with slight variations.
 
