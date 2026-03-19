@@ -28,18 +28,18 @@
 
 ### Table 1: Summary
 
-| # | Priority | Category | Description | File(s) |
-|---|----------|----------|-------------|---------|
-| R1 | P1 | Documentation | CLAUDE.md documents wrong default for `NL_OUTPUT_TRUNCATE_CHARS` | CLAUDE.md |
-| R2 | P1 | Code Quality | OpenAI request construction duplicated 4x — extract shared builder | providers/openai.sh |
-| R3 | P1 | Code Quality | Gemini request construction duplicated 4x — extract shared builder | providers/gemini.sh |
-| R4 | P2 | Maintenance | Anthropic API version hardcoded as 2023-06-01 — make configurable | providers/anthropic.sh |
-| R5 | P1 | Robustness | `needs_followup` regex heuristic unreliable for native tool call responses | llm_providers.sh |
-| R6 | P2 | Token Efficiency | Ollama prompt section headers still include decorative Unicode bars | llm_prompt.sh |
-| R7 | P2 | Robustness | Vertex AI has no streaming — no progress indicator for users | llm_providers.sh |
-| R8 | P2 | Feature Gap | Ollama provider ignores `tools_json` — no native tool calling path | providers/ollama.sh |
-| R9 | P2 | Robustness | Streaming `trap ... RETURN` may not clean up headers on SIGINT | providers/*.sh |
-| R10 | P2 | Testing | No dedicated unit tests for Ollama chunking strategies | tests/unit/ |
+| # | Priority | Category | Description | File(s) | Status |
+|---|----------|----------|-------------|---------|--------|
+| R1 | P1 | Documentation | CLAUDE.md documents wrong default for `NL_OUTPUT_TRUNCATE_CHARS` | CLAUDE.md | **FIXED** |
+| R2 | P1 | Code Quality | OpenAI request construction duplicated 4x — extract shared builder | providers/openai.sh | **FIXED** |
+| R3 | P1 | Code Quality | Gemini request construction duplicated 4x — extract shared builder | providers/gemini.sh | **FIXED** |
+| R4 | P2 | Maintenance | Anthropic API version hardcoded as 2023-06-01 — make configurable | providers/anthropic.sh | **FIXED** |
+| R5 | P1 | Robustness | `needs_followup` regex heuristic unreliable for native tool call responses | llm_providers.sh | **FIXED** |
+| R6 | P2 | Token Efficiency | Ollama prompt section headers still include decorative Unicode bars | llm_prompt.sh | **FIXED** |
+| R7 | P2 | Robustness | Vertex AI has no streaming — no progress indicator for users | llm_providers.sh | **FIXED** |
+| R8 | P2 | Feature Gap | Ollama provider ignores `tools_json` — no native tool calling path | providers/ollama.sh | **FIXED** |
+| R9 | P2 | Robustness | Streaming `trap ... RETURN` may not clean up headers on SIGINT | providers/*.sh | **FIXED** |
+| R10 | P2 | Testing | No dedicated unit tests for Ollama chunking strategies | tests/unit/ | **FIXED** |
 
 ---
 
