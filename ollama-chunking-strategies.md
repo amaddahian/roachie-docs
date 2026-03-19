@@ -1,7 +1,7 @@
 # Ollama/Llama Chunking Strategies for Limited Context Windows
 
 **Date:** 2026-03-19
-**Status:** Planned (not yet implemented)
+**Status:** **IMPLEMENTED** (strategies 1-5, PR #3)
 **Context:** Llama open-source models have ~4-5K token context limits. The roachie Modelfiles set `num_ctx 4096` for all three roachie variants (roachie, roachie-8b, roachie-3b).
 
 ---
@@ -142,16 +142,16 @@ _enforce_ollama_budget() {
 
 ## Recommended Implementation Order
 
-| Priority | Strategy | Tokens Saved | Complexity |
-|----------|----------|-------------|------------|
-| 1 | Strategy 1: Tool help chunking | ~1,000 | Low |
-| 2 | Strategy 4: Reduce reflexion output | ~750 | Low |
-| 3 | Strategy 5: Skip doc RAG | ~350-1,050 | Low |
-| 4 | Strategy 2: Truncate tool help | ~500 | Low |
-| 5 | Strategy 3: Skip learning data | ~200-500 | Low |
-| 6 | Strategy 6: Dynamic budget | All edge cases | Medium |
+| Priority | Strategy | Tokens Saved | Complexity | Status |
+|----------|----------|-------------|------------|--------|
+| 1 | Strategy 1: Tool help chunking | ~1,000 | Low | **IMPLEMENTED** |
+| 2 | Strategy 4: Reduce reflexion output | ~750 | Low | **IMPLEMENTED** |
+| 3 | Strategy 5: Skip doc RAG | ~350-1,050 | Low | **IMPLEMENTED** |
+| 4 | Strategy 2: Truncate tool help | ~500 | Low | **IMPLEMENTED** |
+| 5 | Strategy 3: Skip learning data | ~200-500 | Low | **IMPLEMENTED** |
+| 6 | Strategy 6: Dynamic budget | All edge cases | Medium | Deferred (not needed) |
 
-Strategies 1-5 are simple conditionals on `llm_provider == ollama-*`. Strategy 6 is a general-purpose budget enforcer that handles all edge cases.
+Strategies 1-5 implemented via simple `[[ "$llm_provider" == ollama-* ]]` conditionals. Strategy 6 deferred — strategies 1-5 provide sufficient headroom.
 
 **Combined effect of strategies 1-5:** Reduces Ollama input from ~2,250 tokens to ~800-1,000 tokens, leaving ~3,000 tokens for output and reflexion -- comfortable even within 4K context.
 
