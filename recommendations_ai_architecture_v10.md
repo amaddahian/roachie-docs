@@ -6,13 +6,13 @@ Review of the roachie NL/LLM subsystem following completion of v8/v9 review cycl
 
 | ID | Priority | Category | Description |
 |----|----------|----------|-------------|
-| R1 | P1 | Concurrency | Inverted flock logic in `_save_failure_locked` / `_save_success_locked` — lock not actually held during writes |
+| R1 | P1 | Concurrency | **FIXED** Inverted flock logic in `_save_failure_locked` / `_save_success_locked` — lock not actually held during writes |
 | R2 | P1 | Concurrency | Non-atomic cost file read-modify-write in `_nl_add_session_cost` — race between read and write |
-| R3 | P1 | Security | Path traversal in `_nl_load_prompt_template` — filename not validated, `../../../etc/passwd` possible |
-| R4 | P1 | Security | Sed injection in `_nl_load_prompt_template` — `$tools_dir` with special chars breaks sed substitution |
-| R5 | P1 | Security | RBAC role not validated at session init — invalid `ROACHIE_ROLE=superuser` silently treated as admin |
-| R6 | P1 | Config | `_NL_MAX_AGENT_ITERATIONS` has no env override despite comment claiming `NL_MAX_ITERATIONS` works |
-| R7 | P1 | Error handling | Non-streaming curl calls missing `-f` flag — HTTP 401/403/500 return HTML parsed as JSON |
+| R3 | P1 | Security | **N/A** Path traversal in `_nl_load_prompt_template` — function only on unmerged template branch, not on main |
+| R4 | P1 | Security | **N/A** Sed injection in `_nl_load_prompt_template` — function only on unmerged template branch, not on main |
+| R5 | P1 | Security | **FIXED** RBAC role not validated at session init — invalid `ROACHIE_ROLE=superuser` silently treated as admin |
+| R6 | P1 | Config | **FIXED** `_NL_MAX_AGENT_ITERATIONS` has no env override despite comment claiming `NL_MAX_ITERATIONS` works |
+| R7 | P1 | Error handling | **FIXED** Non-streaming curl calls missing `-f` flag — HTTP 401/403/500 return HTML parsed as JSON |
 | R8 | P1 | Error handling | Silent jq failure on partial tool arguments — connection drop during streaming loses tool args silently |
 | R9 | P2 | Testing | Zero test coverage for Doc RAG and reflexion features (deployed but untested) |
 | R10 | P2 | Testing | No tests for sticky context, trace IDs, or multi-turn memory persistence |
@@ -58,7 +58,7 @@ Review of the roachie NL/LLM subsystem following completion of v8/v9 review cycl
 
 ## Detailed Findings
 
-### R1 — Inverted flock Logic (P1)
+### R1 — Inverted flock Logic (P1) — **FIXED**
 
 **Problem:** `_save_failure_locked` and `_save_success_locked` use flock with inverted logic. The current code:
 ```bash
@@ -87,7 +87,7 @@ flock -w 5 200
 
 ---
 
-### R3 — Path Traversal in Template Loading (P1)
+### R3 — Path Traversal in Template Loading (P1) — **N/A** (function on unmerged branch)
 
 **Problem:** `_nl_load_prompt_template` accepts filename as `$1` and concatenates into `$base_dir/tools/utils/prompts/$filename`. No validation prevents `../../etc/passwd`.
 
@@ -100,7 +100,7 @@ flock -w 5 200
 
 ---
 
-### R4 — Sed Injection in Template Loading (P1)
+### R4 — Sed Injection in Template Loading (P1) — **N/A** (function on unmerged branch)
 
 **Problem:** `sed "s|{{TOOLS_DIR}}|${tools_dir}|g"` — if `$tools_dir` contains `|`, `&`, `\`, or newlines, sed breaks or substitutes incorrectly.
 
@@ -110,7 +110,7 @@ flock -w 5 200
 
 ---
 
-### R5 — RBAC Role Not Validated at Init (P1)
+### R5 — RBAC Role Not Validated at Init (P1) — **FIXED**
 
 **Problem:** `_NL_ROLE` is set from `ROACHIE_ROLE` env var with no validation. Invalid values like `superuser` are not rejected — `_check_rbac` may fall through to permissive defaults.
 
@@ -123,7 +123,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R6 — Agent Iterations Not Configurable (P1)
+### R6 — Agent Iterations Not Configurable (P1) — **FIXED**
 
 **Problem:** `_NL_MAX_AGENT_ITERATIONS=3` is hardcoded despite comment claiming `NL_MAX_ITERATIONS` env var works. The `${ENV:-default}` pattern is missing.
 
@@ -133,7 +133,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R7 — Non-streaming Curl Missing -f Flag (P1)
+### R7 — Non-streaming Curl Missing -f Flag (P1) — **FIXED**
 
 **Problem:** All 5 providers' non-streaming curl calls omit `-f` (fail on HTTP error). HTTP 401/403/500 responses return HTML that gets parsed as JSON, producing confusing errors instead of clear "auth failed" or "server error".
 
