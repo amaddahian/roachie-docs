@@ -6,10 +6,10 @@ Review of the roachie NL/LLM subsystem following completion of v10 cycle (24 of 
 
 | ID | Priority | Category | Description |
 |----|----------|----------|-------------|
-| R1 | P1 | Bug | OpenAI streaming: `accumulated_tool_calls` referenced before declaration — empty response check uses undefined variable |
-| R2 | P1 | Security | Sticky context extraction via jq regex can be poisoned by crafted user queries injecting fake cluster/database/tenant values |
-| R3 | P1 | Error handling | `_ms_now()` on bash < 5 spawns `python3` subprocess — fails silently if python3 not installed, breaks timing metrics |
-| R4 | P1 | Concurrency | Cost file `_nl_add_session_cost_inner` runs inside flock but `mv -f` may complete after lock released — atomic write not guaranteed |
+| R1 | P1 | Bug | **FIXED** OpenAI streaming: `accumulated_tool_calls` referenced before declaration — empty response check uses undefined variable |
+| R2 | P1 | Security | **FIXED** Sticky context extraction via jq regex can be poisoned by crafted user queries injecting fake cluster/database/tenant values |
+| R3 | P1 | Error handling | **FIXED** `_ms_now()` on bash < 5 spawns `python3` subprocess — fails silently if python3 not installed, breaks timing metrics |
+| R4 | P1 | Concurrency | **FIXED** Cost file `_nl_add_session_cost_inner` runs inside flock but `mv -f` may complete after lock released — atomic write not guaranteed |
 | R5 | P2 | Performance | Prompt token budget: system prompt ~10K tokens with full tool catalog + enrichment + schema; no per-provider budget enforcement beyond history trimming |
 | R6 | P2 | Consistency | Cost formatting in `_csv_escape` and awk arithmetic not locale-safe — `LC_ALL=C` not set, decimal separator varies by locale |
 | R7 | P2 | Error handling | Debug log rotation keeps only 1 backup (`.1`) — each rotation silently discards all prior history |
@@ -54,7 +54,7 @@ Review of the roachie NL/LLM subsystem following completion of v10 cycle (24 of 
 
 ## Detailed Findings
 
-### R1 — OpenAI Streaming: Undefined Variable in Empty Response Check (P1)
+### R1 — OpenAI Streaming: Undefined Variable in Empty Response Check (P1) — **FIXED**
 
 **Problem:** `accumulated_tool_calls` is referenced at line 271 in the empty response detection check, but not declared until line 285. When no tool calls arrive and text is empty, bash evaluates `"$accumulated_tool_calls" == "[]"` against an undefined variable, which expands to `"" == "[]"` (false). This means the empty response check falls through to produce a response with no content instead of reporting an error.
 
@@ -77,7 +77,7 @@ local accumulated_tool_calls="[]"  # Must be before empty response check
 
 ---
 
-### R2 — Sticky Context Extraction Vulnerable to Injection (P1)
+### R2 — Sticky Context Extraction Vulnerable to Injection (P1) — **FIXED**
 
 **Problem:** `_nl_sticky_context` is extracted from dropped conversation history using jq regex patterns like `capture("cluster[: ]+(?<v>[A-Z]{2})")`. A user query containing "use cluster: XX" or "database: malicious_db" will be captured and injected into subsequent queries' system prompt context, potentially directing the LLM to target unintended clusters or databases.
 
@@ -103,7 +103,7 @@ _nl_sticky_context=$(printf '%s' "$_dropped_json" | jq -r '
 
 ---
 
-### R3 — `_ms_now()` Silent Failure on bash < 5 Without Python3 (P1)
+### R3 — `_ms_now()` Silent Failure on bash < 5 Without Python3 (P1) — **FIXED**
 
 **Problem:** On bash < 5, `_ms_now()` calls `python3 -c 'import time; ...'`. If python3 is not installed (common on minimal Docker containers), it silently falls back to `$(date +%s) * 1000)` which loses millisecond precision. But worse, the `python3` invocation spawns a full interpreter per call — 10+ times per query during agent iterations, adding ~500ms overhead per query.
 
@@ -120,7 +120,7 @@ fi
 
 ---
 
-### R4 — Cost File Atomic Write Not Guaranteed Under Lock (P1)
+### R4 — Cost File Atomic Write Not Guaranteed Under Lock (P1) — **FIXED**
 
 **Problem:** `_nl_add_session_cost_inner()` runs under flock via `_with_db_lock`, but the `mv -f "$tmp" "$file"` operation may not complete atomically on all filesystems. If the lock is released (subshell exits) before `mv` finishes, a concurrent reader can see a partial file. Additionally, `echo $((...))` creates a file without newline-terminated content, which `cat` reads correctly but some tools may not.
 
