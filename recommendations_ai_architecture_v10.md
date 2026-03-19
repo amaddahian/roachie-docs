@@ -8,15 +8,15 @@ Review of the roachie NL/LLM subsystem following completion of v8/v9 review cycl
 |----|----------|----------|-------------|
 | R1 | P1 | Concurrency | **FIXED** Inverted flock logic in `_save_failure_locked` / `_save_success_locked` — lock not actually held during writes |
 | R2 | P1 | Concurrency | **FIXED** Non-atomic cost file read-modify-write in `_nl_add_session_cost` — race between read and write |
-| R3 | P1 | Security | **N/A** Path traversal in `_nl_load_prompt_template` — function only on unmerged template branch, not on main |
-| R4 | P1 | Security | **N/A** Sed injection in `_nl_load_prompt_template` — function only on unmerged template branch, not on main |
+| R3 | P1 | Security | **FIXED** Path traversal in `_nl_load_prompt_template` — filename validated to `[a-zA-Z0-9_.-]+` |
+| R4 | P1 | Security | **FIXED** Sed injection in `_nl_load_prompt_template` — `$tools_dir` escaped before sed substitution |
 | R5 | P1 | Security | **FIXED** RBAC role not validated at session init — invalid `ROACHIE_ROLE=superuser` silently treated as admin |
 | R6 | P1 | Config | **FIXED** `_NL_MAX_AGENT_ITERATIONS` has no env override despite comment claiming `NL_MAX_ITERATIONS` works |
 | R7 | P1 | Error handling | **FIXED** Non-streaming curl calls missing `-f` flag — HTTP 401/403/500 return HTML parsed as JSON |
 | R8 | P1 | Error handling | **FIXED** Silent jq failure on partial tool arguments — connection drop during streaming loses tool args silently |
 | R9 | P2 | Testing | **FIXED** Zero test coverage for Doc RAG and reflexion features (reflexion tested; Doc RAG only on unmerged branch) |
 | R10 | P2 | Testing | **FIXED** No tests for sticky context, trace IDs, or multi-turn memory persistence |
-| R11 | P2 | Testing | **N/A** Evaluation harness has no per-query timeout — eval harness only on unmerged branch |
+| R11 | P2 | Testing | **FIXED** Evaluation harness per-query timeout — polls with `EVAL_QUERY_TIMEOUT` (default 60s) |
 | R12 | P2 | Consistency | **FIXED** Different error JSON structures across providers (Gemini missing `type` field, Ollama has none) |
 | R13 | P2 | Consistency | **FIXED** Inconsistent empty response detection — OpenAI doesn't check tool calls, Gemini doesn't check text |
 | R14 | P2 | Performance | **FIXED** Multiple `ollama list` calls during provider detection — 5+ subprocess invocations per selection |
@@ -87,7 +87,7 @@ flock -w 5 200
 
 ---
 
-### R3 — Path Traversal in Template Loading (P1) — **N/A** (function on unmerged branch)
+### R3 — Path Traversal in Template Loading (P1) — **FIXED**
 
 **Problem:** `_nl_load_prompt_template` accepts filename as `$1` and concatenates into `$base_dir/tools/utils/prompts/$filename`. No validation prevents `../../etc/passwd`.
 
@@ -100,7 +100,7 @@ flock -w 5 200
 
 ---
 
-### R4 — Sed Injection in Template Loading (P1) — **N/A** (function on unmerged branch)
+### R4 — Sed Injection in Template Loading (P1) — **FIXED**
 
 **Problem:** `sed "s|{{TOOLS_DIR}}|${tools_dir}|g"` — if `$tools_dir` contains `|`, `&`, `\`, or newlines, sed breaks or substitutes incorrectly.
 
@@ -171,7 +171,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R11 — Evaluation Harness Missing Per-Query Timeout (P2) — **N/A** (eval harness on unmerged branch)
+### R11 — Evaluation Harness Missing Per-Query Timeout (P2) — **FIXED**
 
 **Problem:** `run_eval.sh` calls `_call_llm_api` with no timeout wrapper. A hung API call blocks the entire evaluation run.
 
