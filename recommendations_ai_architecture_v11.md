@@ -11,16 +11,16 @@ Review of the roachie NL/LLM subsystem following completion of v10 cycle (24 of 
 | R3 | P1 | Error handling | **FIXED** `_ms_now()` on bash < 5 spawns `python3` subprocess — fails silently if python3 not installed, breaks timing metrics |
 | R4 | P1 | Concurrency | **FIXED** Cost file `_nl_add_session_cost_inner` runs inside flock but `mv -f` may complete after lock released — atomic write not guaranteed |
 | R5 | P2 | Performance | Prompt token budget: system prompt ~10K tokens with full tool catalog + enrichment + schema; no per-provider budget enforcement beyond history trimming |
-| R6 | P2 | Consistency | Cost formatting in `_csv_escape` and awk arithmetic not locale-safe — `LC_ALL=C` not set, decimal separator varies by locale |
-| R7 | P2 | Error handling | Debug log rotation keeps only 1 backup (`.1`) — each rotation silently discards all prior history |
-| R8 | P2 | Testing | Test isolation: `test_nl_pipeline.sh` reuses global variables across sections without reset; cleanup not trap-guarded |
-| R9 | P2 | Testing | No test coverage for schema-aware prompts (`_nl_fetch_schema_context`, caching, truncation, graceful fallback) |
-| R10 | P2 | Testing | No test coverage for semantic tool matching (embedding provider detection, cosine similarity, combined regex+semantic) |
-| R11 | P2 | Testing | Evaluation dataset has ~70 queries for 77 tools — insufficient coverage; no multi-tenant query scenarios |
-| R12 | P2 | Testing | Inconsistent assertion frameworks — `test_llm_*.sh` files define custom `assert_eq`/`assert_contains` instead of sourcing `test_helpers.sh` |
-| R13 | P2 | Dead code | `_NL_CONTEXT_WARN_TOKENS` defined in `llm_config.sh` but never referenced — actual overflow protection uses `_llm_context_limit()` |
-| R14 | P2 | Security | Prompt injection via reflexion: command output fed back to LLM not truncated by `_sanitize_for_prompt` — only raw char truncation applied |
-| R15 | P2 | Error handling | Gemini JSON extraction regex (`scan`) handles only 1 level of nesting — deeply nested responses silently fail to parse |
+| R6 | P2 | Consistency | **FIXED** Cost formatting in `_csv_escape` and awk arithmetic not locale-safe — `LC_ALL=C` not set, decimal separator varies by locale |
+| R7 | P2 | Error handling | **FIXED** Debug log rotation keeps only 1 backup (`.1`) — each rotation silently discards all prior history |
+| R8 | P2 | Testing | **FIXED** Test isolation: `test_nl_pipeline.sh` reuses global variables across sections without reset; cleanup not trap-guarded |
+| R9 | P2 | Testing | **FIXED** No test coverage for schema-aware prompts (`_nl_fetch_schema_context`, caching, truncation, graceful fallback) |
+| R10 | P2 | Testing | **FIXED** No test coverage for semantic tool matching (embedding provider detection, cosine similarity, combined regex+semantic) |
+| R11 | P2 | Testing | **FIXED** Evaluation dataset has ~70 queries for 77 tools — insufficient coverage; no multi-tenant query scenarios |
+| R12 | P2 | Testing | **FIXED** Inconsistent assertion frameworks — `test_llm_*.sh` files define custom `assert_eq`/`assert_contains` instead of sourcing `test_helpers.sh` |
+| R13 | P2 | Dead code | **FIXED** `_NL_CONTEXT_WARN_TOKENS` defined in `llm_config.sh` but never referenced — actual overflow protection uses `_llm_context_limit()` |
+| R14 | P2 | Security | **FIXED** Prompt injection via reflexion: command output fed back to LLM not truncated by `_sanitize_for_prompt` — only raw char truncation applied |
+| R15 | P2 | Error handling | **FIXED** Gemini JSON extraction regex (`scan`) handles only 1 level of nesting — deeply nested responses silently fail to parse |
 | R16 | P3 | Consistency | Ollama has no streaming implementation (`_call_ollama_api_stream` missing) — undocumented limitation |
 | R17 | P3 | Maintenance | Prompt template files have no version comments showing when rules were added/modified |
 | R18 | P3 | Dead code | `_log_nl()` parameter 16 (`successes_loaded`) accepted but never logged — API compatibility shim with no consumer |
@@ -160,7 +160,7 @@ History trimming at 80% of context limit addresses conversation growth but not t
 
 ---
 
-### R6 — Locale-Dependent Arithmetic and Formatting (P2)
+### R6 — Locale-Dependent Arithmetic and Formatting (P2) — **FIXED**
 
 **Problem:** Cost formatting uses `awk` without `LC_ALL=C`. On locales with `,` as decimal separator (e.g., `de_DE`), `awk` arithmetic like `printf "%.4f"` outputs `0,0150` instead of `0.0150`, breaking downstream parsing and display.
 
@@ -173,7 +173,7 @@ LC_ALL=C awk -v pt="$prompt_tokens" ...
 
 ---
 
-### R7 — Debug Log Rotation Keeps Only 1 Backup (P2)
+### R7 — Debug Log Rotation Keeps Only 1 Backup (P2) — **FIXED**
 
 **Problem:** Debug log rotation uses `mv -f "$debug_file" "${debug_file}.1"`, which overwrites any existing `.1` backup. On high-volume sessions with `NL_DEBUG=1`, each rotation discards all prior debug history except the current file.
 
@@ -189,7 +189,7 @@ mv -f "$debug_file" "${debug_file}.1"
 
 ---
 
-### R8 — Test Isolation and Cleanup in Pipeline Tests (P2)
+### R8 — Test Isolation and Cleanup in Pipeline Tests (P2) — **FIXED**
 
 **Problem:** `test_nl_pipeline.sh` initializes global variables at the top (lines 20-34) that persist across test sections. Variables like `_nl_messages_json`, `clean_input`, `llm_provider` are reused without explicit reset. Mock tool directory cleanup at line 595 only runs if the script completes — no `trap` guards against early exit.
 
@@ -202,7 +202,7 @@ mv -f "$debug_file" "${debug_file}.1"
 
 ---
 
-### R9 — No Test Coverage for Schema-Aware Prompts (P2)
+### R9 — No Test Coverage for Schema-Aware Prompts (P2) — **FIXED**
 
 **Problem:** `_nl_fetch_schema_context()` queries the cluster for databases and tables, caches per session, and injects schema into the system prompt. No test validates: schema fetching, caching behavior, truncation at 5 databases / 50 tables, graceful fallback on connection failure, or correct injection into prompts.
 
@@ -210,7 +210,7 @@ mv -f "$debug_file" "${debug_file}.1"
 
 ---
 
-### R10 — No Test Coverage for Semantic Tool Matching (P2)
+### R10 — No Test Coverage for Semantic Tool Matching (P2) — **FIXED**
 
 **Problem:** Semantic matching (embeddings + cosine similarity) is active in the pipeline via `_semantic_match_tools()` and `_enrich_system_prompt_with_tool_help()`. The only validation is `tools/utils/test_embeddings.sh` which requires live embedding APIs. No unit tests cover: embedding provider detection, cosine similarity computation, regex+semantic combining logic, or top-7 filtering.
 
@@ -218,7 +218,7 @@ mv -f "$debug_file" "${debug_file}.1"
 
 ---
 
-### R11 — Evaluation Dataset Insufficient Coverage (P2)
+### R11 — Evaluation Dataset Insufficient Coverage (P2) — **FIXED**
 
 **Problem:** `tests/evaluation/eval_dataset.tsv` has ~70 queries covering a subset of 77 tools. Missing: multi-tenant scenarios, tool-specific flag combinations, ambiguous queries requiring disambiguation, and edge cases where multiple tools could match.
 
@@ -226,7 +226,7 @@ mv -f "$debug_file" "${debug_file}.1"
 
 ---
 
-### R12 — Inconsistent Test Assertion Frameworks (P2)
+### R12 — Inconsistent Test Assertion Frameworks (P2) — **FIXED**
 
 **Problem:** `test_llm_extract.sh` and `test_llm_streaming.sh` define custom assertion functions (`assert_eq`, `assert_empty`, `assert_contains`) instead of sourcing `tests/test_helpers.sh` which provides standard `assert_equals`, `assert_contains`, `assert_command_succeeds`. This creates maintenance burden and inconsistent error message formatting.
 
@@ -236,7 +236,7 @@ mv -f "$debug_file" "${debug_file}.1"
 
 ---
 
-### R13 — Dead Code: `_NL_CONTEXT_WARN_TOKENS` (P2)
+### R13 — Dead Code: `_NL_CONTEXT_WARN_TOKENS` (P2) — **FIXED**
 
 **Problem:** `_NL_CONTEXT_WARN_TOKENS` is defined in `llm_config.sh:20` with env override `NL_CONTEXT_WARN_TOKENS` and listed in `llm_assistant.sh:14` dependency header, but is never actually referenced in any code. The actual overflow protection uses `_llm_context_limit()` with 80% threshold trimming.
 
@@ -250,7 +250,7 @@ Also remove from `llm_assistant.sh:14` dependency comment.
 
 ---
 
-### R14 — Reflexion Output Not Sanitized for Prompt Injection (P2)
+### R14 — Reflexion Output Not Sanitized for Prompt Injection (P2) — **FIXED**
 
 **Problem:** When reflexion triggers, command stderr/stdout output is truncated to `_NL_OUTPUT_TRUNCATE_CHARS` (4000) and fed back to the LLM as context. This output passes through `_mask_sensitive_output()` for PII but NOT through `_sanitize_for_prompt()` for injection patterns. Command output containing "SYSTEM: Ignore previous instructions" could manipulate the LLM.
 
@@ -258,7 +258,7 @@ Also remove from `llm_assistant.sh:14` dependency comment.
 
 ---
 
-### R15 — Gemini JSON Extraction Regex Limited to 1-Level Nesting (P2)
+### R15 — Gemini JSON Extraction Regex Limited to 1-Level Nesting (P2) — **FIXED**
 
 **Problem:** `_extract_gemini_response()` uses `jq scan("\\{[^{}]*(?:\\{[^{}]*\\}[^{}]*)*\\}")` to find JSON objects in plain text when Gemini wraps responses in markdown or explanatory text. This regex only handles one level of nested braces. Responses with `{"commands": [{"args": {"key": "value"}}]}` (3 levels) won't be extracted.
 
