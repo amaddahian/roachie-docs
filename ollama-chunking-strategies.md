@@ -157,6 +157,54 @@ Strategies 1-5 are simple conditionals on `llm_provider == ollama-*`. Strategy 6
 
 ---
 
+## Provider-Agnostic Budget Management (Recommended Approach)
+
+The chunking strategies above were originally framed as Ollama-specific, but the underlying problem -- **no budget awareness** -- affects all providers. The system currently assembles prompts and sends them without checking whether they fit or whether they're cost-efficient.
+
+### Context Headroom by Provider
+
+| Provider | Context | Current Prompt | Headroom | Real Concern |
+|----------|---------|---------------|----------|-------------|
+| Ollama/Llama | 4K | ~2,250 | Tight, breaks on reflexion | **Overflow** |
+| OpenAI GPT-4.1 | 128K | ~10,750 | Fine | Cost |
+| Anthropic Claude | 200K | ~10,750 | Fine | Cost |
+| Gemini 2.5 Flash | 1M | ~10,750 | Fine | Minimal |
+| Gemini 2.5 Pro | 1M | ~10,750 | Fine | Minimal |
+
+For cloud providers, "fine" doesn't mean "optimal." Sending 10,750 tokens of system prompt when only 3,000 are relevant wastes money. At Sonnet pricing (300 cents/1M input tokens), every query costs ~0.3 cents just for the system prompt. Over hundreds of queries, that adds up.
+
+### Gemini Model Context Windows
+
+| Model | Context Window | Notes |
+|-------|---------------|-------|
+| Gemini 2.5 Pro | 1M tokens | 2M token preview tier available |
+| Gemini 2.5 Flash | 1M tokens | Same as Pro, faster/cheaper |
+| Gemini 2.0 Flash | 1M tokens | |
+| Gemini 1.5 Pro | 1M (default), 2M (extended) | 2M available via API flag |
+| Gemini 1.5 Flash | 1M tokens | |
+
+Context budget is effectively a non-issue for Gemini -- even the full prompt with enrichment, doc RAG, learning data, and multi-turn history is <1.1% of the context window. The concern is purely cost, not overflow.
+
+### Recommended: Single Budget-Aware Prompt Assembler
+
+Instead of hardcoding `ollama-*` checks in strategies 1-5, implement **Strategy 6 as the primary approach** -- a provider-agnostic budget enforcer:
+
+1. Query the context limit from `_llm_context_limit()` (already exists in `llm_config.sh`)
+2. Reserve tokens for output (e.g., `_NL_MAX_OUTPUT_TOKENS`)
+3. Assemble the prompt in priority order, stopping when the budget is reached
+4. Drop sections in the same order for all providers:
+   - Doc RAG chunks (lowest priority)
+   - Learning data (persistent failures/successes)
+   - Extra tool help (keep top 2, drop rest)
+   - Conversation history (keep only last turn)
+   - Tool help truncation (head -10)
+
+For Ollama (4K), most optional sections get dropped. For Claude/GPT (128-200K), everything fits. For Gemini (1M), everything fits trivially. Same code path, different behavior based on the provider's capacity.
+
+This aligns with the deferred v9-R2 recommendation (token budget management) -- not Ollama-specific, but a general architectural improvement that benefits all providers by being cost-aware and overflow-safe.
+
+---
+
 ## Modelfile Context Configuration
 
 Current Modelfiles (`tools/utils/Modelfile.roachie*`) all use:
