@@ -7,24 +7,24 @@ Review of the roachie NL/LLM subsystem following completion of v8/v9 review cycl
 | ID | Priority | Category | Description |
 |----|----------|----------|-------------|
 | R1 | P1 | Concurrency | **FIXED** Inverted flock logic in `_save_failure_locked` / `_save_success_locked` — lock not actually held during writes |
-| R2 | P1 | Concurrency | Non-atomic cost file read-modify-write in `_nl_add_session_cost` — race between read and write |
+| R2 | P1 | Concurrency | **FIXED** Non-atomic cost file read-modify-write in `_nl_add_session_cost` — race between read and write |
 | R3 | P1 | Security | **N/A** Path traversal in `_nl_load_prompt_template` — function only on unmerged template branch, not on main |
 | R4 | P1 | Security | **N/A** Sed injection in `_nl_load_prompt_template` — function only on unmerged template branch, not on main |
 | R5 | P1 | Security | **FIXED** RBAC role not validated at session init — invalid `ROACHIE_ROLE=superuser` silently treated as admin |
 | R6 | P1 | Config | **FIXED** `_NL_MAX_AGENT_ITERATIONS` has no env override despite comment claiming `NL_MAX_ITERATIONS` works |
 | R7 | P1 | Error handling | **FIXED** Non-streaming curl calls missing `-f` flag — HTTP 401/403/500 return HTML parsed as JSON |
-| R8 | P1 | Error handling | Silent jq failure on partial tool arguments — connection drop during streaming loses tool args silently |
+| R8 | P1 | Error handling | **FIXED** Silent jq failure on partial tool arguments — connection drop during streaming loses tool args silently |
 | R9 | P2 | Testing | Zero test coverage for Doc RAG and reflexion features (deployed but untested) |
 | R10 | P2 | Testing | No tests for sticky context, trace IDs, or multi-turn memory persistence |
 | R11 | P2 | Testing | Evaluation harness has no per-query timeout — hung API call blocks entire eval run |
 | R12 | P2 | Consistency | Different error JSON structures across providers (Gemini missing `type` field, Ollama has none) |
 | R13 | P2 | Consistency | Inconsistent empty response detection — OpenAI doesn't check tool calls, Gemini doesn't check text |
-| R14 | P2 | Performance | Multiple `ollama list` calls during provider detection — 5+ subprocess invocations per selection |
+| R14 | P2 | Performance | **FIXED** Multiple `ollama list` calls during provider detection — 5+ subprocess invocations per selection |
 | R15 | P2 | Performance | Gemini streaming buffers entire SSE response in memory — unbounded growth on large responses |
-| R16 | P2 | Concurrency | Metrics `_curl_rc` temp file not unique per invocation — concurrent calls overwrite each other |
+| R16 | P2 | Concurrency | **FIXED** Metrics `_curl_rc` temp file not unique per invocation — concurrent calls overwrite each other |
 | R17 | P2 | Concurrency | Ollama startup race — concurrent calls both try to start `ollama serve`, fighting for port |
-| R18 | P2 | Error handling | Schema context failure silently ignored — no user warning when schema fetch fails |
-| R19 | P2 | Error handling | Corrupted `tools.json` schema file causes silent fallback to no native tool calling |
+| R18 | P2 | Error handling | **FIXED** Schema context failure silently ignored — no user warning when schema fetch fails |
+| R19 | P2 | Error handling | **FIXED** Corrupted `tools.json` schema file causes silent fallback to no native tool calling |
 | R20 | P2 | Security | No test for prompt injection via reflexion command output fed back to LLM |
 | R21 | P2 | Testing | RBAC tests only validate `_check_rbac` in isolation, not integrated with command execution pipeline |
 | R22 | P2 | Testing | Missing negative tests for malformed LLM responses (string vs boolean, object vs array) |
@@ -77,7 +77,7 @@ flock -w 5 200
 
 ---
 
-### R2 — Non-atomic Cost File Race (P1)
+### R2 — Non-atomic Cost File Race (P1) — **FIXED**
 
 **Problem:** `_nl_add_session_cost()` reads the file, does arithmetic, then writes back. Between the `cat` and `echo`, another subshell could write, causing lost updates.
 
@@ -143,7 +143,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R8 — Silent Tool Argument Loss on Connection Drop (P1)
+### R8 — Silent Tool Argument Loss on Connection Drop (P1) — **FIXED**
 
 **Problem:** In Anthropic streaming, if connection drops mid-tool-argument, `_cur_tool_args` has incomplete JSON. The code falls back to `echo '{}'`, silently dropping all arguments.
 
@@ -203,7 +203,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R14 — Multiple ollama list Calls (P2)
+### R14 — Multiple ollama list Calls (P2) — **FIXED**
 
 **Problem:** Provider detection, fallback selection, model selection, and startup each independently call `ollama list` — 5+ subprocess invocations.
 
@@ -223,7 +223,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R16 — Metrics curl_rc File Not Unique (P2)
+### R16 — Metrics curl_rc File Not Unique (P2) — **FIXED**
 
 **Problem:** All streaming providers write curl exit code to `${_NL_METRICS_PREFIX}_curl_rc`. Concurrent calls share the same prefix and overwrite each other.
 
@@ -243,7 +243,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R18 — Schema Context Failure Silent (P2)
+### R18 — Schema Context Failure Silent (P2) — **FIXED**
 
 **Problem:** `_nl_fetch_schema_context` failures produce empty string with no user warning. Users don't know schema-aware features are unavailable.
 
@@ -253,7 +253,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R19 — Corrupted Schema File Silent Fallback (P2)
+### R19 — Corrupted Schema File Silent Fallback (P2) — **FIXED**
 
 **Problem:** If `tools.json` is corrupted (invalid JSON), `_nl_load_tool_schemas` returns `[]` without warning — native tool calling silently disabled.
 
