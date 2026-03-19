@@ -14,8 +14,8 @@ Review of the roachie NL/LLM subsystem following completion of v8/v9 review cycl
 | R6 | P1 | Config | **FIXED** `_NL_MAX_AGENT_ITERATIONS` has no env override despite comment claiming `NL_MAX_ITERATIONS` works |
 | R7 | P1 | Error handling | **FIXED** Non-streaming curl calls missing `-f` flag — HTTP 401/403/500 return HTML parsed as JSON |
 | R8 | P1 | Error handling | **FIXED** Silent jq failure on partial tool arguments — connection drop during streaming loses tool args silently |
-| R9 | P2 | Testing | Zero test coverage for Doc RAG and reflexion features (deployed but untested) |
-| R10 | P2 | Testing | No tests for sticky context, trace IDs, or multi-turn memory persistence |
+| R9 | P2 | Testing | **FIXED** Zero test coverage for Doc RAG and reflexion features (reflexion tested; Doc RAG only on unmerged branch) |
+| R10 | P2 | Testing | **FIXED** No tests for sticky context, trace IDs, or multi-turn memory persistence |
 | R11 | P2 | Testing | **N/A** Evaluation harness has no per-query timeout — eval harness only on unmerged branch |
 | R12 | P2 | Consistency | **FIXED** Different error JSON structures across providers (Gemini missing `type` field, Ollama has none) |
 | R13 | P2 | Consistency | **FIXED** Inconsistent empty response detection — OpenAI doesn't check tool calls, Gemini doesn't check text |
@@ -25,9 +25,9 @@ Review of the roachie NL/LLM subsystem following completion of v8/v9 review cycl
 | R17 | P2 | Concurrency | **FIXED** Ollama startup race — concurrent calls both try to start `ollama serve`, fighting for port |
 | R18 | P2 | Error handling | **FIXED** Schema context failure silently ignored — no user warning when schema fetch fails |
 | R19 | P2 | Error handling | **FIXED** Corrupted `tools.json` schema file causes silent fallback to no native tool calling |
-| R20 | P2 | Security | No test for prompt injection via reflexion command output fed back to LLM |
-| R21 | P2 | Testing | RBAC tests only validate `_check_rbac` in isolation, not integrated with command execution pipeline |
-| R22 | P2 | Testing | Missing negative tests for malformed LLM responses (string vs boolean, object vs array) |
+| R20 | P2 | Security | **FIXED** No test for prompt injection via reflexion command output fed back to LLM |
+| R21 | P2 | Testing | **FIXED** RBAC tests only validate `_check_rbac` in isolation, not integrated with command execution pipeline |
+| R22 | P2 | Testing | **FIXED** Missing negative tests for malformed LLM responses (string vs boolean, object vs array) |
 | R23 | P3 | Dead code | **FIXED** Unused `_sse_raw` variable in Gemini streaming, unused `_ollama_pid` in provider startup |
 | R24 | P3 | Config | **FIXED** Ollama startup wait timeout hardcoded to 15s, max retries hardcoded to 1 — not configurable |
 | R25 | P3 | Maintenance | **N/A** Dual-parameter tool rules duplicated across 3+ template files — template files only on unmerged branch |
@@ -153,7 +153,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R9 — Zero Test Coverage for Doc RAG and Reflexion (P2)
+### R9 — Zero Test Coverage for Doc RAG and Reflexion (P2) — **FIXED**
 
 **Problem:** Two major features — Doc RAG (document retrieval for complex queries) and reflexion (auto-retry with error analysis) — have zero automated tests despite being deployed.
 
@@ -163,7 +163,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R10 — No Tests for Sticky Context or Trace IDs (P2)
+### R10 — No Tests for Sticky Context or Trace IDs (P2) — **FIXED**
 
 **Problem:** Sticky session context (v9-R7) and per-query trace IDs (v9-R11) were added but have no dedicated tests validating they work correctly.
 
@@ -263,7 +263,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R20 — No Reflexion Prompt Injection Test (P2)
+### R20 — No Reflexion Prompt Injection Test (P2) — **FIXED**
 
 **Problem:** Reflexion feeds command output back to the LLM. If command output contains "SYSTEM: Ignore previous instructions", the LLM could be manipulated. No test validates this attack vector.
 
@@ -271,7 +271,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R21 — RBAC Not Tested End-to-End (P2)
+### R21 — RBAC Not Tested End-to-End (P2) — **FIXED**
 
 **Problem:** RBAC tests validate `_check_rbac` in isolation but don't test the full pipeline: LLM generates prohibited command -> `_validate_command` blocks it.
 
@@ -281,7 +281,7 @@ case "$_NL_ROLE" in admin|dba|analyst|monitor) ;; *) _NL_ROLE="analyst"; warn "I
 
 ---
 
-### R22 — Missing Malformed Response Tests (P2)
+### R22 — Missing Malformed Response Tests (P2) — **FIXED**
 
 **Problem:** No tests for: `needs_followup` as string instead of boolean, `commands` as object instead of array, missing `reasoning` field, null fields.
 
