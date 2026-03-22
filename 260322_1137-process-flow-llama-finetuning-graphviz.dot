@@ -1,0 +1,160 @@
+// Process Flow: Llama 8B Accuracy Improvement (82% → 90%)
+// Render: dot -Tpng -o process-flow.png 260322_1137-process-flow-llama-finetuning-graphviz.dot
+//     or: dot -Tsvg -o process-flow.svg 260322_1137-process-flow-llama-finetuning-graphviz.dot
+
+digraph llama_finetuning {
+    rankdir=TB;
+    fontname="Helvetica";
+    node [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled", fillcolor="#E8F4FD", color="#2196F3"];
+    edge [fontname="Helvetica", fontsize=9, color="#666666"];
+
+    // Start/End nodes
+    start [label="Baseline\nroachie-8b at 82% accuracy\n(60-61/73 prompts)", shape=ellipse, fillcolor="#F8BBD0", color="#E91E63"];
+    done [label="DONE\n82% → 90% (+8 points)\nGap to Gemini: model capability", shape=ellipse, fillcolor="#C8E6C9", color="#4CAF50"];
+
+    // Step 1: Root Cause Analysis
+    subgraph cluster_rca {
+        label="Step 1: Root Cause Analysis";
+        style=filled;
+        fillcolor="#FFF3E0";
+        color="#FF9800";
+        rca1 [label="Compact prompt path\n(fewer templates)"];
+        rca2 [label="Enrichment capped\nat 3 tools (vs 7)"];
+        rca3 [label="Simplified connection\nreminder"];
+        rca4 [label="Modelfile: SYSTEM\nconflicts with runtime"];
+        rca5 [label="num_predict=256\n(too low)"];
+        rca6 [label="temperature=0.1\n(too conservative)"];
+    }
+
+    // Step 2: Fix #1
+    subgraph cluster_fix1 {
+        label="Step 2: Fix #1 — Unified Prompt";
+        style=filled;
+        fillcolor="#E3F2FD";
+        color="#1976D2";
+        fix1_before [label="BEFORE\nif ollama → compact prompt\nelse → full prompt", fillcolor="#FFCDD2"];
+        fix1_after [label="AFTER\nAll providers use\n_nl_build_system_prompt()\n7 template files", fillcolor="#C8E6C9"];
+    }
+
+    // Step 3: Fix #2
+    subgraph cluster_fix2 {
+        label="Step 3: Fix #2 — Remove Enrichment Cap";
+        style=filled;
+        fillcolor="#E3F2FD";
+        color="#1976D2";
+        fix2_before [label="BEFORE\nollama → max 3 tools\n+ hardcoded reminder", fillcolor="#FFCDD2"];
+        fix2_after [label="AFTER\nAll providers: 7 tools\n+ standard reminder", fillcolor="#C8E6C9"];
+    }
+
+    // Step 4: Fix #3 & #4
+    subgraph cluster_fix34 {
+        label="Step 4: Fix #3 & #4 — Modelfile Updates";
+        style=filled;
+        fillcolor="#E3F2FD";
+        color="#1976D2";
+        fix3_before [label="BEFORE\nSYSTEM prompt embedded\ntemp 0.1, num_predict 256", fillcolor="#FFCDD2"];
+        fix3_after [label="AFTER\nNo SYSTEM prompt\ntemp 0.15, num_predict 512", fillcolor="#C8E6C9"];
+    }
+
+    // Step 5: Verify
+    verify [label="Step 5: Verify Quick Fixes\nResult: ~87% (+5 points)", fillcolor="#FFF9C4", color="#F9A825"];
+
+    // Step 6: Training Data
+    subgraph cluster_data {
+        label="Step 6: Prepare LoRA Training Data";
+        style=filled;
+        fillcolor="#F3E5F5";
+        color="#7B1FA2";
+        data1 [label="156 JSONL batch files\n3,105 records"];
+        data2 [label="Filter:\nprovider=gemini\nstatus=success"];
+        data3 [label="Deduplicate\n82 unique pairs"];
+        data4 [label="Clean commands\nStrip prefixes, paths"];
+        data5 [label="Chat-ML JSONL format\nuser → assistant"];
+        data6 [label="Split (seed=42)\n65 train / 8 valid / 9 test"];
+        data1 -> data2 -> data3 -> data4 -> data5 -> data6;
+    }
+
+    // Step 7: Environment
+    env [label="Step 7: Setup Environment\npython3 -m venv .venv\npip install mlx-lm"];
+
+    // Step 8: Training
+    subgraph cluster_train {
+        label="Step 8: LoRA Fine-Tuning (33 min)";
+        style=filled;
+        fillcolor="#E8F5E9";
+        color="#388E3C";
+        train1 [label="Config: rank=8, layers=16\nlr=1e-5, batch=1\n1000 iterations"];
+        train2 [label="Train on MLX\nApple Silicon native\nPeak: 6.87 GB"];
+        train3 [label="Best checkpoint:\niter 600\nval loss = 0.332", fillcolor="#A5D6A7"];
+        train1 -> train2 -> train3;
+    }
+
+    // Steps 9-12: Conversion Pipeline
+    subgraph cluster_convert {
+        label="Steps 9-12: Model Conversion Pipeline";
+        style=filled;
+        fillcolor="#FFF8E1";
+        color="#FFA000";
+        fuse [label="Step 9: Fuse LoRA\nBase (4-bit) + Adapters\n→ Fused (4-bit, 4.2GB)"];
+        dequant [label="Step 10: De-quantize\n4-bit U32 → bfloat16\n~15 GB"];
+        template [label="Step 11: Fix Chat Template\nCopy from base model\ntokenizer_config.json"];
+        import [label="Step 12: Import to Ollama\nollama create roachie-8b-ft\nFinal: 16GB FP16"];
+        fuse -> dequant -> template -> import;
+    }
+
+    // Step 13: Cleanup
+    cleanup [label="Step 13: Cleanup\nDelete intermediates (19.2GB)\nKeep adapters (16.8MB)"];
+
+    // Step 14: Validation
+    subgraph cluster_test {
+        label="Step 14: Batch Test Validation";
+        style=filled;
+        fillcolor="#ECEFF1";
+        color="#455A64";
+        test [label="Run 73 prompts\nagainst roachie-8b-ft"];
+        result [label="66/73 = 90.4%", fillcolor="#C8E6C9", color="#4CAF50"];
+        failures [label="5 Failures:\n#8: Wrong tool (backup)\n#57,#70: Missing positional arg\n#61: Missing -d flag\n#68: Truncated flags", fillcolor="#FFCDD2", color="#D32F2F"];
+        test -> result;
+        test -> failures;
+    }
+
+    // Edges
+    start -> rca1;
+    start -> rca2;
+    start -> rca3;
+    start -> rca4;
+    start -> rca5;
+    start -> rca6;
+
+    rca1 -> fix1_before [lhead=cluster_fix1];
+    fix1_before -> fix1_after;
+
+    fix1_after -> fix2_before;
+    fix2_before -> fix2_after;
+
+    fix2_after -> fix3_before;
+    fix3_before -> fix3_after;
+
+    fix3_after -> verify;
+    verify -> data1 [lhead=cluster_data];
+
+    data6 -> env;
+    env -> train1 [lhead=cluster_train];
+
+    train3 -> fuse [lhead=cluster_convert];
+
+    import -> cleanup;
+    cleanup -> test [lhead=cluster_test];
+    result -> done;
+
+    // Error annotations
+    err1 [label="Error: PEP 668\nFix: venv", shape=note, fillcolor="#FFECB3", color="#FF8F00", fontsize=9];
+    err2 [label="Error: U32 dtype\nFix: dequantize", shape=note, fillcolor="#FFECB3", color="#FF8F00", fontsize=9];
+    err3 [label="Error: disk full\nFix: rm intermediates", shape=note, fillcolor="#FFECB3", color="#FF8F00", fontsize=9];
+    err4 [label="Error: empty response\nFix: copy chat_template", shape=note, fillcolor="#FFECB3", color="#FF8F00", fontsize=9];
+
+    env -> err1 [style=dashed, color="#FF8F00"];
+    dequant -> err2 [style=dashed, color="#FF8F00"];
+    dequant -> err3 [style=dashed, color="#FF8F00"];
+    template -> err4 [style=dashed, color="#FF8F00"];
+}

@@ -1,0 +1,157 @@
+@startuml
+title Process Flow: Llama 8B Accuracy Improvement (82% → 90%)
+skinparam backgroundColor #FEFEFE
+skinparam activity {
+  BackgroundColor #E8F4FD
+  BorderColor #2196F3
+  FontSize 12
+}
+skinparam partition {
+  BackgroundColor #F5F5F5
+  BorderColor #9E9E9E
+}
+
+|Diagnosis|
+start
+:Baseline: roachie-8b at **82%** accuracy (60-61/73)
+Reference: Gemini at **95-100%** (70-73/73);
+
+partition "Step 1: Root Cause Analysis" {
+  :Compare Ollama vs Gemini code paths
+  in **bin/roachie-batch**;
+  note right
+    Found 3 Ollama-specific restrictions:
+    1. Compact prompt (fewer templates)
+    2. Enrichment capped at 3 tools
+    3. Simplified connection reminder
+
+    Modelfile issues:
+    4. Embedded SYSTEM conflicts with runtime
+    5. num_predict=256 (too low)
+    6. temperature=0.1 (too conservative)
+  end note
+}
+
+|Quick Fixes|
+partition "Step 2: Fix #1 — Unified Prompt" {
+  :Remove Ollama branch at line 639
+  All providers → **_nl_build_system_prompt()**
+  Ollama gets all **7 template files**;
+}
+
+partition "Step 3: Fix #2 — Remove Enrichment Cap" {
+  :Remove enrichment cap (lines 831-839)
+  All providers → **7 enriched tools**
+  Standard connection reminder for all;
+}
+
+partition "Step 4: Fix #3 & #4 — Modelfile Updates" {
+  :Remove SYSTEM prompt from Modelfile
+  temperature: 0.1 → **0.15**
+  num_predict: 256 → **512**
+  Rebuild via **ollama create**;
+}
+
+:Verify quick fixes
+Result: **~87%** (+5 points);
+
+|LoRA Pipeline|
+partition "Step 6: Prepare Training Data" {
+  :Read 156 JSONL batch result files
+  (3,105 total records);
+  :Filter: provider=="gemini"
+  AND status=="success";
+  :Deduplicate by normalized prompt
+  → **82 unique pairs**;
+  :Clean commands
+  Strip [OK:XXms], abs paths, semicolons;
+  :Format as Chat-ML JSONL
+  user prompt → assistant JSON response;
+  :Split (seed=42)
+  **65** train / **8** valid / **9** test;
+}
+
+partition "Step 7: Setup Environment" {
+  :python3 -m venv .venv
+  pip install mlx-lm;
+  note right: PEP 668 blocked system pip → venv required
+}
+
+partition "Step 8: LoRA Fine-Tuning (33 min)" {
+  :Configure training
+  Base: Meta-Llama-3.1-8B-Instruct-4bit
+  LoRA rank=8, layers=16
+  lr=1e-5, batch=1, 1000 iters;
+  :Train on MLX (Apple Silicon native)
+  Peak memory: **6.87 GB**;
+  :Select best checkpoint
+  **Iteration 600** (val loss **0.332**);
+  note right
+    Val loss oscillates:
+    3.309 → 0.386 → 0.873 → 0.332 → 1.320
+    Dataset too small (82 examples)
+    for stable generalization
+  end note
+}
+
+|Model Conversion|
+partition "Step 9: Fuse LoRA Adapters" {
+  :mlx_lm.fuse
+  Base (4-bit, 4.2GB) + Adapters (16.8MB)
+  → Fused model (4-bit, 4.2GB);
+}
+
+partition "Step 10: De-quantize" {
+  :mlx_lm.convert (dequantize=True)
+  4-bit U32 → bfloat16 (~15GB);
+  note right
+    **Error**: Ollama can't read U32 dtype
+    **Error**: Disk full (15GB model, 16GB free)
+    **Fix**: Removed 4-bit intermediate
+  end note
+}
+
+partition "Step 11: Fix Chat Template" {
+  :Copy chat_template from base model
+  tokenizer_config.json (4,614 chars);
+  note right
+    **Error**: Model returned "{ }" (11 tokens)
+    **Root cause**: MLX strips chat_template
+    **Fix**: Copy from base model
+  end note
+}
+
+partition "Step 12: Import into Ollama" {
+  :Generate Modelfile.finetuned
+  ollama create roachie-8b-ft
+  Final: **16GB FP16** in Ollama;
+}
+
+|Validation|
+partition "Step 13: Cleanup" {
+  :Delete 4-bit fused (4.2GB)
+  Delete FP16 intermediate (15GB)
+  Keep adapters (16.8MB);
+}
+
+partition "Step 14: Batch Test" {
+  :Run 73 prompts against roachie-8b-ft;
+  if (Result?) then (**66/73 = 90.4%**)
+    :5 remaining failures
+    #8: Wrong tool (backup)
+    #57,#70: Missing positional arg
+    #61: Missing -d flag
+    #68: Truncated flags;
+  endif
+}
+
+partition "Step 15: Commit & Document" {
+  :Roachie repo: 15cab1a
+  Roachie-docs: 4 commits pushed;
+}
+
+#90EE90:Done: **82% → 90%** (+8 points)
+Gap to Gemini: model capability, not config;
+stop
+
+@enduml

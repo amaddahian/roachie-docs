@@ -1,0 +1,171 @@
+# Process Flow: Llama 8B Accuracy Improvement (82% → 90%)
+# Render: d2 260322_1137-process-flow-llama-finetuning-d2.d2 process-flow.svg
+
+direction: down
+
+start: {
+  label: |md
+    **Baseline**
+    roachie-8b at 82% accuracy (60-61/73)
+    Reference: Gemini at 95-100% (70-73/73)
+  |
+  shape: oval
+  style.fill: "#F8BBD0"
+}
+
+rca: Step 1 — Root Cause Analysis {
+  style.fill: "#FFF3E0"
+  compact: Compact prompt path\n(fewer templates)
+  enrichment: Enrichment capped\nat 3 tools (vs 7)
+  reminder: Simplified connection\nreminder
+  system: Modelfile SYSTEM\nconflicts with runtime
+  num_predict: num_predict=256\n(too low)
+  temperature: temperature=0.1\n(too conservative)
+}
+
+fix1: Step 2 — Fix #1 Unified Prompt {
+  style.fill: "#E3F2FD"
+  before: {
+    label: "BEFORE\nif ollama → compact\nelse → full prompt"
+    style.fill: "#FFCDD2"
+  }
+  after: {
+    label: "AFTER\nAll providers use\n_nl_build_system_prompt()\n7 template files"
+    style.fill: "#C8E6C9"
+  }
+  before -> after: Remove branch
+}
+
+fix2: Step 3 — Fix #2 Remove Enrichment Cap {
+  style.fill: "#E3F2FD"
+  before: {
+    label: "BEFORE\nollama → max 3 tools\n+ hardcoded reminder"
+    style.fill: "#FFCDD2"
+  }
+  after: {
+    label: "AFTER\nAll providers: 7 tools\n+ standard reminder"
+    style.fill: "#C8E6C9"
+  }
+  before -> after: Remove branch
+}
+
+fix34: Step 4 — Fix #3 & #4 Modelfile Updates {
+  style.fill: "#E3F2FD"
+  before: {
+    label: "BEFORE\nSYSTEM embedded\ntemp 0.1\nnum_predict 256"
+    style.fill: "#FFCDD2"
+  }
+  after: {
+    label: "AFTER\nNo SYSTEM\ntemp 0.15\nnum_predict 512"
+    style.fill: "#C8E6C9"
+  }
+  before -> after: Update
+}
+
+verify: {
+  label: "Step 5: Verify Quick Fixes\nResult: ~87% (+5 points)"
+  style.fill: "#FFF9C4"
+}
+
+data: Step 6 — Prepare Training Data {
+  style.fill: "#F3E5F5"
+  files: 156 JSONL files\n3,105 records
+  filter: Filter gemini\n+ success
+  dedup: Deduplicate\n82 unique pairs
+  clean: Clean commands
+  format: Chat-ML JSONL
+  split: Split (seed=42)\n65/8/9
+
+  files -> filter -> dedup -> clean -> format -> split
+}
+
+env: {
+  label: "Step 7: Setup Environment\npython3 -m venv .venv\npip install mlx-lm"
+  style.fill: "#E8F4FD"
+}
+
+train: Step 8 — LoRA Fine-Tuning (33 min) {
+  style.fill: "#E8F5E9"
+  config: Config\nrank=8 layers=16\nlr=1e-5 batch=1\n1000 iterations
+  run: Train on MLX\nApple Silicon native\nPeak: 6.87 GB
+  best: {
+    label: "Best checkpoint\niter 600\nval loss = 0.332"
+    style.fill: "#A5D6A7"
+  }
+  config -> run -> best
+}
+
+convert: Steps 9-12 — Model Conversion {
+  style.fill: "#FFF8E1"
+  fuse: Step 9\nFuse LoRA adapters\nBase + Adapters → Fused
+  dequant: Step 10\nDe-quantize\n4-bit U32 → bfloat16
+  template: Step 11\nFix chat_template\nCopy from base model
+  import: {
+    label: "Step 12\nImport to Ollama\nroachie-8b-ft (16GB)"
+    style.fill: "#C8E6C9"
+  }
+  fuse -> dequant -> template -> import
+}
+
+cleanup: {
+  label: "Step 13: Cleanup\nDelete intermediates (19.2GB)\nKeep adapters (16.8MB)"
+  style.fill: "#E8F4FD"
+}
+
+test: Step 14 — Batch Test Validation {
+  style.fill: "#ECEFF1"
+  run: Run 73 prompts\nagainst roachie-8b-ft
+  result: {
+    label: "66/73 = 90.4%"
+    style.fill: "#C8E6C9"
+  }
+  failures: {
+    label: |md
+      **5 Failures**
+      - #8: Wrong tool (backup)
+      - #57,#70: Missing positional arg
+      - #61: Missing -d flag
+      - #68: Truncated flags
+    |
+    style.fill: "#FFCDD2"
+  }
+  run -> result
+  run -> failures
+}
+
+done: {
+  label: "DONE\n82% → 90% (+8 points)"
+  shape: oval
+  style.fill: "#C8E6C9"
+}
+
+# Error annotations
+err_pep668: {
+  label: "Error: PEP 668\nFix: venv"
+  shape: page
+  style.fill: "#FFECB3"
+}
+err_u32: {
+  label: "Error: U32 dtype\nFix: dequantize"
+  shape: page
+  style.fill: "#FFECB3"
+}
+err_disk: {
+  label: "Error: disk full\nFix: rm intermediates"
+  shape: page
+  style.fill: "#FFECB3"
+}
+err_template: {
+  label: "Error: empty response\nFix: copy chat_template"
+  shape: page
+  style.fill: "#FFECB3"
+}
+
+# Main flow
+start -> rca -> fix1 -> fix2 -> fix34 -> verify -> data -> env -> train -> convert -> cleanup -> test -> done
+
+# Error connections
+env -> err_pep668: {style.stroke-dash: 5}
+convert.dequant -> err_u32: {style.stroke-dash: 5}
+convert.dequant -> err_disk: {style.stroke-dash: 5}
+convert.template -> err_template: {style.stroke-dash: 5}
