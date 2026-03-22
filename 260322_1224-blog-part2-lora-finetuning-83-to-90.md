@@ -58,6 +58,34 @@ Here's what a training example looks like:
 
 82 examples is small. Very small. But the goal was to establish a baseline before investing in data collection.
 
+## Why Llama 3.1 8B?
+
+A reasonable question: why not use a newer Llama release? As of March 2026, Llama 3.1 8B remains the best option at the ~8B size for pure text instruction tasks:
+
+| Version | Sizes | Text 8B? | Why Not |
+|---------|-------|----------|---------|
+| **Llama 3.1** (Jul 2024) | 8B, 70B, 405B | **Yes** | **Used** — last 8B text-instruct model |
+| Llama 3.2 (Sep 2024) | 1B, 3B, 11B, 90B | No | Text models stop at 3B. The 11B/90B are vision-focused. |
+| Llama 3.3 (Dec 2024) | 70B only | No | No small variant. 70B needs ~40 GB RAM. |
+| Llama 4 (Apr 2025) | Scout, Maverick (MoE) | No | Mixture-of-Experts — much larger total footprint despite ~17B active params. |
+
+Meta hasn't released a Llama 8B text-instruct model since 3.1. The 3.2 text lineup stopped at 3B (used in roachie as `roachie-3b`, but accuracy is lower at ~75%).
+
+### Storage Requirements
+
+The fine-tuning pipeline has significant disk demands due to format conversion:
+
+| Component | Size | Lifetime |
+|-----------|------|----------|
+| Base model (4-bit, MLX) | 4.2 GB | Cached in HuggingFace |
+| LoRA adapters | 16.8 MB | Permanent (reproducible) |
+| Fused model (4-bit) | 4.2 GB | Temporary — deleted after de-quantize |
+| De-quantized model (bfloat16) | ~15 GB | Temporary — deleted after Ollama import |
+| **Final model in Ollama** | **16 GB** | Permanent (FP16) |
+| **Peak disk during conversion** | **~25 GB** | Intermediates coexisting briefly |
+
+Budget at least 25 GB of free disk space before starting the pipeline. The `run_lora.sh` script deletes intermediates sequentially to minimize peak usage, but two "disk full" errors were hit on a drive with only 16 GB free.
+
 ## Step 2: LoRA Training on Apple Silicon
 
 The training framework is **MLX** — Apple's machine learning framework designed for Apple Silicon. It runs natively on the Metal GPU, uses unified memory (no CPU-GPU transfers), and supports LoRA out of the box via `mlx-lm`.

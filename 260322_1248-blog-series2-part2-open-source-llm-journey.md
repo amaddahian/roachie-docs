@@ -89,6 +89,10 @@ A Python script extracts, deduplicates, cleans (strips timing prefixes, absolute
 
 Split: 65 train / 8 validation / 9 test.
 
+### Why Llama 3.1? Why Not a Newer Version?
+
+Llama 3.1 8B Instruct remains the best option at the ~8B size. Meta's subsequent releases don't offer an 8B text-instruct model — Llama 3.2's text models stop at 3B (the 11B/90B are multimodal vision models), Llama 3.3 is 70B only, and Llama 4's Mixture-of-Experts architecture has a much larger total footprint. For a model that needs to run on a standard laptop with 16-32 GB RAM, Llama 3.1 8B is still the sweet spot.
+
 ### Training: LoRA on Apple Silicon
 
 Full fine-tuning of 8B parameters is impractical on a laptop. **LoRA** (Low-Rank Adaptation) freezes the base weights and trains small adapter matrices — 16.8 MB of new parameters on top of 4.2 GB.
@@ -150,6 +154,21 @@ The 5 remaining failures (out of 73 test prompts) are:
 - 1 complex migration with truncated flags
 
 These represent the boundary of what 8B parameters can handle for this task.
+
+## Storage Requirements
+
+The fine-tuning and conversion pipeline has significant disk demands:
+
+| Component | Size | Notes |
+|-----------|------|-------|
+| Base model (4-bit) | 4.2 GB | Cached in HuggingFace hub |
+| LoRA adapters | 16.8 MB | Permanent — the only new weights |
+| Fused model (4-bit) | 4.2 GB | Temporary — deleted after de-quantize |
+| De-quantized model (bfloat16) | ~15 GB | Temporary — deleted after Ollama import |
+| **Final model in Ollama** | **16 GB** | Permanent (FP16) |
+| **Peak disk during conversion** | **~25 GB** | Budget this much free space |
+
+The non-fine-tuned roachie models in Ollama are much smaller (~4.5 GB each at Q4_K_M quantization). The fine-tuned model is larger because it's stored at FP16 precision — a future optimization would be to re-quantize it to Q4_K_M after import, halving the memory footprint with minimal accuracy loss.
 
 ## The Economics of Local vs. Cloud
 
