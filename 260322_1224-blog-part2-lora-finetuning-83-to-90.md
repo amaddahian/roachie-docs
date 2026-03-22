@@ -1,33 +1,33 @@
 # LoRA Fine-Tuning Llama 8B on Apple Silicon: From 83% to 90% Using Cloud Model Outputs as Training Data
 
-*Part 2 of 2 — Training a local model to mimic Gemini's tool selection, the MLX-to-Ollama conversion pipeline, and what we learned about the limits of 82 training examples.*
+*Part 2 of 2 — Training a local model to mimic Gemini's tool selection, the MLX-to-Ollama conversion pipeline, and what 82 training examples can (and can't) teach.*
 
 ---
 
-In [Part 1](), we took Llama 3.1 8B from ~50% to 83% accuracy on CLI tool selection through prompt engineering and infrastructure fixes — no model changes at all. But 83% means 1 in 6 commands is wrong. For a DBA tool that might run against production databases, that's not good enough.
+In [Part 1](), Llama 3.1 8B went from ~50% to 83% accuracy on CLI tool selection through prompt engineering and infrastructure fixes — no model changes at all. But 83% means 1 in 6 commands is wrong. For a DBA tool that might run against production databases, that's not good enough.
 
-Gemini was hitting 95-100% on the same prompts. The question was: could we teach Llama to behave more like Gemini, while still running locally?
+Gemini was hitting 95-100% on the same prompts. The question: could Llama learn to behave more like Gemini, while still running locally?
 
 The answer is LoRA fine-tuning. And the training data? Gemini's own outputs.
 
 ## The Idea: Use Cloud Outputs to Train Local Models
 
-We had months of batch test results — thousands of records where we sent the same prompt to Gemini and logged its response. Each record contained:
+Months of batch test results had accumulated — thousands of records where the same prompts were sent to Gemini and the responses logged. Each record contained:
 
 - The natural language prompt ("list all tables in the movr database on VA tenant")
 - The JSON response (tool name, flags, explanation)
 - Whether the command executed successfully
 
-This is a ready-made supervised dataset. Gemini already solved the problem. We just needed Llama to learn the mapping.
+This is a ready-made supervised dataset. Gemini already solved the problem. Llama just needed to learn the mapping.
 
 This approach — distilling a large model's behavior into a smaller one — isn't new. But applying it to bash CLI tool selection on commodity hardware (a MacBook Pro) made it practical in a way that GPU cluster training wouldn't be.
 
 ## Step 1: Preparing the Training Data
 
-We wrote a Python script (`prepare_training_data.py`) that:
+A Python script (`prepare_training_data.py`) handles the data pipeline:
 
-1. **Reads 156 JSONL batch result files** from our test audit directory (3,105 total records)
-2. **Filters** to only Gemini responses with `status: "success"` — we don't want to teach the model from wrong answers
+1. **Reads 156 JSONL batch result files** from the test audit directory (3,105 total records)
+2. **Filters** to only Gemini responses with `status: "success"` — the model shouldn't learn from wrong answers
 3. **Deduplicates** by normalized prompt text (lowercase, whitespace-stripped) — many prompts ran multiple times across test runs
 4. **Cleans commands** — strips timing prefixes like `[OK:247ms]`, removes absolute paths (the model should generate relative tool names), drops trailing semicolons
 5. **Formats as Chat-ML JSONL** — the format MLX expects for instruction tuning
@@ -56,15 +56,15 @@ Here's what a training example looks like:
 }
 ```
 
-82 examples is small. Very small. We knew this going in, but wanted to establish a baseline before investing in data collection.
+82 examples is small. Very small. But the goal was to establish a baseline before investing in data collection.
 
 ## Step 2: LoRA Training on Apple Silicon
 
-We used **MLX** — Apple's machine learning framework designed for Apple Silicon. It runs natively on the Metal GPU, uses unified memory (no CPU-GPU transfers), and supports LoRA out of the box via `mlx-lm`.
+The training framework is **MLX** — Apple's machine learning framework designed for Apple Silicon. It runs natively on the Metal GPU, uses unified memory (no CPU-GPU transfers), and supports LoRA out of the box via `mlx-lm`.
 
 ### Why LoRA, Not Full Fine-Tuning?
 
-Full fine-tuning of an 8B model requires modifying all ~8 billion parameters. Even in 4-bit quantization, that's impractical on a laptop. LoRA (Low-Rank Adaptation) freezes the base weights and trains small adapter matrices — in our case, adding only **16.8 MB** of new parameters on top of the 4.2 GB base model.
+Full fine-tuning of an 8B model requires modifying all ~8 billion parameters. Even in 4-bit quantization, that's impractical on a laptop. LoRA (Low-Rank Adaptation) freezes the base weights and trains small adapter matrices — in this case, adding only **16.8 MB** of new parameters on top of the 4.2 GB base model.
 
 ### Training Configuration
 
@@ -73,7 +73,7 @@ Full fine-tuning of an 8B model requires modifying all ~8 billion parameters. Ev
 | Base model | `Meta-Llama-3.1-8B-Instruct-4bit` | From MLX Community hub |
 | LoRA rank | 8 | Low rank = fewer parameters, faster training |
 | LoRA layers | 16 | How many transformer layers get adapters |
-| Learning rate | 1e-5 | Conservative — small dataset, don't want to overfit quickly |
+| Learning rate | 1e-5 | Conservative — small dataset, avoid overfitting quickly |
 | Batch size | 1 | Limited by dataset size (65 examples) |
 | Iterations | 1,000 | ~20 epochs over the training set |
 | Peak memory | 6.87 GB | Fits easily in 32GB unified memory |
@@ -81,7 +81,7 @@ Full fine-tuning of an 8B model requires modifying all ~8 billion parameters. Ev
 
 ### The Training Script
 
-We wrapped the entire pipeline in a single bash script (`run_lora.sh`) with 5 stages:
+The entire pipeline is wrapped in a single bash script (`run_lora.sh`) with 5 stages:
 
 ```bash
 # Stage 1: Train
@@ -118,9 +118,9 @@ Stages 3-5 deserve their own section, because that's where everything went wrong
 
 The training loss drops smoothly to near-zero — the model memorized all 65 training examples by iteration 300. But validation loss oscillates wildly: 0.376 → 0.873 → 0.332 → 1.320. This is the signature of a dataset that's too small for stable generalization.
 
-The saving grace: iteration 600 hit a validation loss of 0.332, the lowest point. MLX saves checkpoints every 200 iterations, so we used the iteration-600 adapter weights.
+The saving grace: iteration 600 hit a validation loss of 0.332, the lowest point. MLX saves checkpoints every 200 iterations, so the iteration-600 adapter weights were selected.
 
-With 300+ examples, we'd expect a smoother validation curve and a model that generalizes better to unseen prompts. That's future work.
+With 300+ examples, a smoother validation curve and better generalization to unseen prompts would be expected. That's future work.
 
 ## Step 3: The MLX-to-Ollama Pipeline (aka "Everything That Can Go Wrong")
 
@@ -128,7 +128,7 @@ Training was the easy part. Getting the trained model into Ollama was a series o
 
 ### Problem 1: Ollama Can't Read MLX 4-Bit Weights
 
-After fusing the LoRA adapters into the base model, we had a 4.2 GB model in MLX's native format. Ollama's import rejected it:
+After fusing the LoRA adapters into the base model, the result was a 4.2 GB model in MLX's native format. Ollama's import rejected it:
 
 ```
 Error: unknown data type: U32
@@ -156,13 +156,13 @@ With only 16 GB free on the drive:
 Error: no space left on device
 ```
 
-**Fix**: Delete the 4-bit fused model before de-quantizing — we don't need it anymore. That freed enough space. Later, Ollama's import also ran out of space (it writes the model to its own registry). We had to delete the old Ollama model first, then reimport.
+**Fix**: Delete the 4-bit fused model before de-quantizing — it's no longer needed. That freed enough space. Later, Ollama's import also ran out of space (it writes the model to its own registry). The old Ollama model had to be deleted first, then reimported.
 
 Lesson: budget 3x the model size for the conversion pipeline.
 
 ### Problem 3: The Missing Chat Template
 
-After importing into Ollama, we tested the model:
+After importing into Ollama, testing the model produced:
 
 ```bash
 $ ollama run roachie-8b-ft "list databases on VA tenant"
@@ -175,7 +175,7 @@ Empty JSON. The model processed only 11 tokens before stopping. Something was fu
 
 **Fix**: Copy the `chat_template` (4,614 characters of Jinja2 template) from the original base model's tokenizer config into the de-quantized model's config. After that, Ollama auto-detected the `llama3-instruct` template and everything worked.
 
-We added this fix to `run_lora.sh` so future fine-tuning runs handle it automatically:
+This fix was added to `run_lora.sh` so future fine-tuning runs handle it automatically:
 
 ```python
 import json, glob, os
@@ -219,7 +219,7 @@ Total time from "start training" to "model serving in Ollama": about 45 minutes,
 
 ## Results
 
-We ran the same 73-prompt batch test that we use for all providers:
+The same 73-prompt batch test used for all providers:
 
 ```bash
 bash bin/roachie-batch \
@@ -253,11 +253,11 @@ bash bin/roachie-batch \
 
 The pattern is clear: **positional arguments and complex multi-flag tools** are the remaining weak spot. Two of five failures are the same issue (DDL table missing the table name as a positional arg). These require understanding that some tools take arguments *without* a flag prefix, which is hard to learn from 82 examples.
 
-## What We'd Do Differently
+## What Could Be Done Differently
 
 **1. Start with 300+ training examples, not 82.** The oscillating validation loss tells the whole story. 82 examples is enough for pattern memorization but not generalization. Running 300 diverse prompts through Gemini would take about an hour and dramatically improve stability.
 
-**2. Include paraphrased prompts.** Our training data had one phrasing per intent. "List tables in movr" should also appear as "show tables in the movr database," "what tables are in movr," etc. This teaches the model that intent matters more than exact wording.
+**2. Include paraphrased prompts.** The training data had one phrasing per intent. "List tables in movr" should also appear as "show tables in the movr database," "what tables are in movr," etc. This teaches the model that intent matters more than exact wording.
 
 **3. Add negative examples.** The model doesn't know what *wrong* looks like. DPO (Direct Preference Optimization) pairs — correct command vs. incorrect command for the same prompt — would teach it to avoid common mistakes like wrong tool selection.
 
@@ -299,7 +299,7 @@ On an Apple Silicon Mac with 16+ GB RAM, the entire process takes under an hour.
 
 ## Key Takeaways
 
-1. **Cloud model outputs are free training data.** If you're already running queries against a cloud LLM, every successful response is a supervised example. Log them.
+1. **Cloud model outputs are free training data.** If queries are already running against a cloud LLM, every successful response is a supervised example. Log them.
 
 2. **LoRA on Apple Silicon is practical.** 33 minutes, 6.87 GB peak memory, no GPU cluster needed. The MLX ecosystem makes this accessible to anyone with a recent Mac.
 
@@ -307,11 +307,11 @@ On an Apple Silicon Mac with 16+ GB RAM, the entire process takes under an hour.
 
 4. **82 examples isn't enough, but it's a start.** Even with heavy overfitting, the model learned enough to gain 7 percentage points. More data will yield diminishing returns on each example but much more stable generalization.
 
-5. **Infrastructure fixes come first.** We gained 33 points (50% → 83%) from prompt engineering and code fixes — more than the 7 points from fine-tuning. Always exhaust the easy wins before training.
+5. **Infrastructure fixes come first.** The prompt engineering and code fixes gained 33 points (50% → 83%) — more than the 7 points from fine-tuning. Always exhaust the easy wins before training.
 
-6. **The 8B ceiling is around 90-92%.** For complex tool selection with positional args and multi-flag commands, you'll need either a larger model (70B), constrained decoding, or a validation loop that checks generated commands against `--help` output.
+6. **The 8B ceiling is around 90-92%.** For complex tool selection with positional args and multi-flag commands, the options are a larger model (70B), constrained decoding, or a validation loop that checks generated commands against `--help` output.
 
-The local LLM isn't as accurate as Gemini. But at 90%, it's accurate enough to be genuinely useful — and it runs entirely on your machine, with zero latency, zero cost, and zero data leaving your network.
+The local LLM isn't as accurate as Gemini. But at 90%, it's accurate enough to be genuinely useful — and it runs entirely on the local machine, with zero latency, zero cost, and zero data leaving the network.
 
 ---
 
