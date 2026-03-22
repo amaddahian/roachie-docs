@@ -268,3 +268,73 @@ The 8B model's ceiling appears to be ~85-90% — it follows most instructions bu
 
 Branch: `feature/unified-ollama-prompt`
 Commit: `3808908` — "Unify Ollama prompt path with cloud providers for higher accuracy"
+
+## Deep Dive: Same 12 Failed Queries — Gemini vs Ollama (2026-03-21)
+
+Ran the 12 Ollama failures through Gemini. Gemini passed all 12 (100%). Ollama passed 2/12 (16%).
+
+### Critical Finding: Enrichment Is Identical
+
+Both providers receive **exactly the same enriched tools** for every query. The enrichment pipeline (regex keyword matching) produces identical results regardless of LLM provider. The difference is purely in how each model processes the same prompt.
+
+### Side-by-Side Command Comparison
+
+| # | Query | Gemini Command (PASS) | Ollama Command (FAIL) | Root Cause |
+|---|-------|----------------------|----------------------|------------|
+| 1 | backup movr to ceph | `cr_ceph_storage backup -d movr --bucket crdb-test-backups` | Same correct cmd, then tried `cr_backup` too (extra commands failed) | Multi-command: 1st was correct but extras failed |
+| 2 | list ceph backups | `cr_ceph_storage list-backups` | `cr_ceph_storage list` (wrong subcommand) | Ignores tool_notes: "Does NOT have 'list' subcommand" |
+| 3 | show recent backup | `cr_ceph_storage show-backup` | `cr_backup list` (wrong tool entirely) | cr_ceph_storage not even in enriched tools |
+| 4 | DDL for schema | `cr_ddl -s inventory_schema --all` | `cr_ddl_database -s inventory_schema` | **Both passed** (different approach, both valid) |
+| 5 | DDL for users | `cr_ddl_user` | `cr_ddl --include-users true` (hallucinated flag) | Ignores tool catalog: cr_ddl_user is the dedicated tool |
+| 6 | DDL for all views | `cr_ddl_view -d test_lab` (no extra flags) | `cr_ddl_view --all-views` (hallucinated flag) | Invents `--all-views` — not in --help output |
+| 7 | tool names with "table" | `cr_help --search "table"` | `cr_tables` (wrong tool entirely) | Doesn't recognize cr_help as the meta-query tool |
+| 8 | tool names with "view" | `cr_help --search "view"` | `cr_view_references_enhanced` (blocked) | Same meta-query confusion |
+| 9 | migrate schema to db3 | `cr_migrate --source-host ... --source-insecure --target-insecure` | `cr_migrate` with hallucinated flags: `--copy-ddl yes --changefeed-sink ...` | Invents many non-existent flags |
+| 10 | DDL for rides table | `cr_ddl_table -d movr rides` (positional) | `cr_ddl --include-tables true` (hallucinated) | Ignores tool_notes: "table name is positional" |
+| 11 | columns for rides | `cr_columns --filter-db movr --filter-table rides` | `cr_columns -d movr` (missing table filter) | **Both passed** (Ollama's was less specific but worked) |
+| 12 | ACL for products | `cr_get_acl -d test_lab -o products` | `cr_get_acl -d test_lab -T products` (wrong flag) | Ignores tool_notes: "use -o NOT -T" |
+
+### Enrichment Analysis (same tools, different outcomes)
+
+| # | Enriched Tools (identical for both) | Critical Tool Present? | Gemini Used It? | Ollama Used It? |
+|---|-------------------------------------|----------------------|-----------------|-----------------|
+| 2 | cr_db_size, cr_tables, cr_table_info, cr_table_analyze, cr_size, cr_list_tenants, cr_ddl_database | cr_ceph_storage: **NO** | Used anyway (from catalog) | Guessed `list` subcommand |
+| 3 | cr_tables, cr_table_info, cr_table_analyze, cr_size, cr_list_tenants, cr_db_tables_rowcount_* | cr_ceph_storage: **NO** | Used anyway (from catalog) | Used wrong tool entirely |
+| 5 | cr_ddl, cr_my_grants, cr_my_access, cr_list_tenants, cr_get_admin, cr_get_acl, cr_format | cr_ddl_user: **NO** | Used anyway (from catalog) | Tried cr_ddl with hallucinated flags |
+| 10 | cr_ddl, cr_db_size, cr_tables, cr_table_info, cr_table_analyze, cr_size, cr_format | cr_ddl_table: **NO** | Used anyway (from catalog) | Used cr_ddl with hallucinated flags |
+| 12 | cr_db_size, cr_tables, cr_table_info, cr_table_analyze, cr_size, cr_my_grants, cr_my_access | cr_get_acl: **NO** | Used anyway (from catalog) | Used cr_get_acl but wrong flag |
+
+**Key insight**: For queries #2, #3, #5, #10, #12 — the critical tool was NOT in the enriched set, so neither model got its `--help` output. But Gemini still picked the right tool from the catalog and used correct flags, while Ollama either picked the wrong tool or guessed wrong flags.
+
+### Token Comparison (same text, different tokenizers)
+
+| Metric | Ollama (llama3.1) | Gemini (2.5-flash) | Ratio |
+|--------|-------------------|-------------------|-------|
+| Avg input tokens | 9,755 | 13,020 | 0.75x |
+| Min tokens | 4,259 (#11) | 12,490 (#8) | — |
+| Max tokens | 11,158 (#2) | 13,602 (#1) | — |
+
+The ~25% token difference is purely tokenizer efficiency (llama BPE vs Gemini). The actual text content is identical.
+
+### Root Cause: Model Capability Gap (confirmed)
+
+The unified prompt experiment conclusively proves:
+1. **Same enrichment** — identical tools enriched for every query
+2. **Same prompt content** — all 7 template files, same tool_notes, same --help output
+3. **Same token budget** — both well within context limits
+4. **Different outcomes** — Gemini follows instructions precisely, Ollama 8B does not
+
+Gemini's advantages over Ollama 8B:
+- **Catalog reasoning**: Can pick the right tool from a 77-tool catalog even without --help enrichment
+- **Instruction adherence**: Follows tool_notes corrections ("use -o NOT -T") reliably
+- **Subcommand awareness**: Uses correct subcommands (list-backups vs list)
+- **Flag discipline**: Doesn't invent flags like --all-views, --include-users, --copy-ddl
+
+### Potential Improvements (model-side, not prompt-side)
+
+| Option | Effort | Expected Impact | Notes |
+|--------|--------|----------------|-------|
+| **Few-shot examples** in prompt | Low | +5-8% (to ~88-91%) | Add 3-5 concrete correct command examples for common failure patterns |
+| **Larger Ollama model** (70B) | Medium | +10-15% (to ~93-98%) | Requires 40GB+ RAM; much better instruction following |
+| **Fine-tune roachie-8b** | High | +8-12% (to ~91-95%) | Train on Gemini's correct outputs as ground truth |
+| **Accept 83% ceiling** | None | 0% | Use Gemini for production, Ollama for offline/local |
