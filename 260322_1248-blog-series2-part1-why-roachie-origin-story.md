@@ -1,6 +1,6 @@
 # Why Build a Natural Language Interface for CockroachDB? The Origin Story Behind Roachie
 
-*Part 1 of 2 — From  bash scripts to a conversational DBA/SRE assistant, and why the gap between CLI power and GUI simplicity needed bridging.*
+*Part 1 of 2 — From bash scripts to a conversational DBA/SRE assistant, and why the gap between CLI power and GUI simplicity needed bridging.*
 
 ---
 
@@ -8,9 +8,11 @@
 
 Database tooling has always had a split personality.
 
-On one side: **raw power**. SQL consoles, CLI tools, `cockroach sql`, shell scripts. Full control, full flexibility, steep learning curve. A DBA/SRE who knows the right query can extract anything from `crdb_internal` — slow queries, lock contention, replication lag, schema diffs. But knowing the right query is the hard part.
+On one side: **raw power**. SQL consoles, CLI tools, `cockroach sql`, shell scripts. Full control, full flexibility, steep learning curve. A DBA/SRE who knows the right query can extract anything from the catalog — slow queries, lock contention, replication lag, schema diffs. But knowing the right query might also involve access to internal metatdata for extention/advanced-feature support scenarios which could be a bit more involved.
 
-On the other side: **simplicity**. GUI dashboards, DB Console, monitoring UIs. Point and click, see pretty charts, get a high-level view. But the moment something goes wrong — a migration fails, a table has skewed data distribution, a changefeed is lagging — the dashboard can't help. It's back to the CLI.
+On the other side: **simplicity**. GUI dashboards, DB Console, monitoring UIs. Point and click, see appropriate charts, and will get a high-level view. 
+
+But the moment something goes wrong and specially involving more advanced issues —such as changefeed lags, complex job lifecycle failures, or hard-to-attribute latency regressions—the dashboard alone might not sufficient for effective diagnosis and it's back to the CLI.
 
 The question that started Roachie: **what if there was something in between?**
 
@@ -20,13 +22,13 @@ Not a GUI. Not a raw SQL console. A natural language interface that understands 
 
 ## The Journey: It Started with Bash Scripts
 
-Roachie didn't start as an AI project. It started as a collection of bash scripts.
+Roachie didn't originally start as an AI project. It started as a collection of bash scripts.
 
-Working with CockroachDB's self-hosted multi-tenant deployments meant running the same complex queries repeatedly — checking replication lag, comparing schemas between databases, finding who has access to what, generating DDL for migration. Each query involved remembering the right `crdb_internal` tables, the right joins, the right flags.
+Working with CockroachDB's self-hosted multi-tenant deployments meant running the same complex queries repeatedly — checking replication lag, comparing schemas between databases, finding who has access to what, generating DDLs, checking for range distributions and/or other distributed attributes of the overall system. Each query involved remembering the right `crdb_internal` tables, the right joins, the right flags.
 
 So those queries became scripts. `cr_query_stats` for slow queries. `cr_tables` for table listings. `cr_ddl_diff` for schema comparison. `cr_replication_lag` for PCR health. Each one a focused bash tool that wraps a complex SQL query and returns structured, actionable output.
 
-Over time, 77 of these `cr_*` tools accumulated, organized into categories:
+To accommodate this, 70+ of these `cr_*` tools accumulated, organized into categories:
 
 | Category | What It Does |
 |----------|-------------|
@@ -36,25 +38,13 @@ Over time, 77 of these `cr_*` tools accumulated, organized into categories:
 | Data Operations | Backup, restore, migrate, clone, unload data |
 | Cluster Management | Rolling upgrades, Ceph/S3 storage, Kafka CDC, Prometheus/Grafana |
 
-The full tool categories span the entire spectrum of DBA/SRE operations:
-
-| Category | Examples |
-|----------|----------|
-| Statistics & Analysis | `cr_get`, `cr_genstats`, `cr_check_statistics`, `cr_skew` |
-| Slow Queries & Performance | `cr_query_stats`, `cr_query_history`, `cr_plan`, `cr_workload` |
-| Tables & Size | `cr_tables`, `cr_size`, `cr_db_size`, `cr_db_tables_rowcount` |
-| DDL & Schema | `cr_ddl`, `cr_ddl_table`, `cr_ddl_view`, `cr_ddl_diff`, `cr_catalog_diff` |
-| Users & Permissions | `cr_my_access`, `cr_my_grants`, `cr_get_acl`, `cr_find_acl_issues` |
-| Sessions & Locks | `cr_session`, `cr_who`, `cr_show_locks`, `cr_transactions` |
-| Health & Monitoring | `cr_health`, `cr_monitor`, `cr_watch`, `cr_health_check` |
-| Backup & Migration | `cr_backup`, `cr_unload`, `cr_clone`, `cr_migrate` |
-| Views | `cr_find_views`, `cr_ddl_view`, `cr_check_views`, `cr_grep_views` |
+The full tool categories are meant to span the entire spectrum of DBA/SRE operations:
 
 Each tool is self-contained — runs anywhere with bash, `cockroach`, `jq`, and `curl`. No Python dependencies, no npm packages, no compilation step. Copy the scripts to a server and they work.
 
-## The Infrastructure Layer: Multi-Tenant Clusters with Peripherals
+## The Infrastructure Layer: Example Multi-Tenant Clusters with Peripherals
 
-The tools needed an environment to run against. CockroachDB's self-hosted multi-tenant architecture — physical clusters with virtual clusters (tenants) inside — is powerful but complex. Setting up a proper test environment involves:
+The tools needed an environment to run against. CockroachDB's self-hosted multi-tenant architecture — physical clusters with virtual clusters (tenants) inside — is powerful and rich for this demo. Setting up a proper test environment involves:
 
 - **Cluster A** (primary) with multiple virtual clusters (va, vb, system)
 - **Cluster B** (standby) receiving Physical Cluster Replication (PCR) from A
