@@ -116,17 +116,28 @@ The training ran on **MLX**, Apple's native ML framework for Apple Silicon:
 The validation loss curve told the story of a dataset that's too small:
 
 ```
-Val Loss
-3.3  *
-1.3  .  .  .  .  .  .  .  .  .  x
-1.0  .  .  .  x  .  x  .  .  .  .
-0.8  .  .  x  .  .  .  x  x  .  .
-0.5  .  .  .  .  .  .  .  .  x  .
-0.3  .  x  .  .  .  *  .  .  .  .   ← Best: iter 600 (0.332)
-     100 200 300 400 500 600 700 800 900 1000
+Val Loss  (Train Loss)
+3.31  *                                                    iter 1   (baseline)
+1.32  .     .     .     .     .     .     .     .     .  x  iter 1000 (0.029)
+1.07  .     .     .     .     x     .     .     .     .  .  iter 500  (0.038)
+0.92  .     .     .     .     .     .     .     x     .  .  iter 800  (0.030)
+0.87  .     .     x     .     .     .     .     .     .  .  iter 300  (0.085)
+0.79  .     .     .     .     .     .     x     .     .  .  iter 700  (0.029)
+0.75  .     .     .     x     .     .     .     .     .  .  iter 400  (0.055)
+0.53  .     .     .     .     .     .     .     .     x  .  iter 900  (0.028)
+0.39  .     .     .     .     .     .     .     .     .  .
+0.38  .     o     .     .     .     .     .     .     .  .  iter 200  (0.210)
+0.33  .     .     .     .     .     *     .     .     .  .  iter 600  (0.035)
+      100   200   300   400   500   600   700   800   900  1000
+
+      o = iter 200 (val 0.376)    * = iter 600 (val 0.332, selected)
 ```
 
-Training loss dropped to near-zero by iteration 300 (full memorization). Validation loss oscillated wildly — the hallmark of overfitting on limited data. But iteration 600 hit a sweet spot at 0.332 validation loss, and those adapter weights were selected.
+Training loss dropped to near-zero by iteration 300 (full memorization). Validation loss oscillated wildly — the hallmark of overfitting on limited data.
+
+Iteration 200 (val loss 0.376) and iteration 600 (val loss 0.332) appear close — only a 12% difference. But the context around each point is different: at iteration 200, training loss was still 0.210 (the model was still learning), so the low validation loss may partly reflect a lucky draw on the small 8-sample validation set. By iteration 600, training loss had converged to 0.035, meaning the model had fully absorbed the training patterns and the 0.332 validation loss represents actual generalization.
+
+That said, with only 8 validation examples, both checkpoints are within statistical noise. Iteration 600 was selected as the global minimum, but iteration 200 could plausibly perform similarly on the full 73-prompt test suite. More validation data (25+ examples) would make checkpoint selection more reliable — one of the reasons expanding the training dataset is a priority.
 
 ### The Conversion Pipeline: Three Roadblocks
 
