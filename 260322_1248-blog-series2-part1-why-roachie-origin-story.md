@@ -1,6 +1,6 @@
 # Why Build a Natural Language Interface for CockroachDB? The Origin Story Behind Roachie
 
-*Part 1 of 2 — From 77 bash scripts to a conversational DBA assistant, and why the gap between CLI power and GUI simplicity needed bridging.*
+*Part 1 of 2 — From  bash scripts to a conversational DBA/SRE assistant, and why the gap between CLI power and GUI simplicity needed bridging.*
 
 ---
 
@@ -8,7 +8,7 @@
 
 Database tooling has always had a split personality.
 
-On one side: **raw power**. SQL consoles, CLI tools, `cockroach sql`, shell scripts. Full control, full flexibility, steep learning curve. A DBA who knows the right query can extract anything from `crdb_internal` — slow queries, lock contention, replication lag, schema diffs. But knowing the right query is the hard part.
+On one side: **raw power**. SQL consoles, CLI tools, `cockroach sql`, shell scripts. Full control, full flexibility, steep learning curve. A DBA/SRE who knows the right query can extract anything from `crdb_internal` — slow queries, lock contention, replication lag, schema diffs. But knowing the right query is the hard part.
 
 On the other side: **simplicity**. GUI dashboards, DB Console, monitoring UIs. Point and click, see pretty charts, get a high-level view. But the moment something goes wrong — a migration fails, a table has skewed data distribution, a changefeed is lagging — the dashboard can't help. It's back to the CLI.
 
@@ -16,7 +16,7 @@ The question that started Roachie: **what if there was something in between?**
 
 ![The NLP Bridge — connecting CLI power to conversational simplicity](https://github.com/amaddahian/roachie/blob/main/docs/images/nlp_bridge.png?raw=true)
 
-Not a GUI. Not a raw SQL console. A natural language interface that understands CockroachDB — one where a DBA could type "show me the top 5 slowest queries on the VA tenant" and get the actual answer, not a tutorial on how to write the query.
+Not a GUI. Not a raw SQL console. A natural language interface that understands CockroachDB — one where a DBA/SRE could type "show me the top 5 slowest queries on the VA tenant" and get the actual answer, not a tutorial on how to write the query.
 
 ## The Journey: It Started with Bash Scripts
 
@@ -36,7 +36,7 @@ Over time, 77 of these `cr_*` tools accumulated, organized into categories:
 | Data Operations | Backup, restore, migrate, clone, unload data |
 | Cluster Management | Rolling upgrades, Ceph/S3 storage, Kafka CDC, Prometheus/Grafana |
 
-The full tool categories span the entire spectrum of DBA operations:
+The full tool categories span the entire spectrum of DBA/SRE operations:
 
 | Category | Examples |
 |----------|----------|
@@ -73,7 +73,7 @@ At this point, the toolkit was useful but had the same limitation as every CLI t
 
 The idea was straightforward: let the LLM figure out which tool to run.
 
-A DBA types "show me the DDL for the products table in movr on the VA tenant." The system should:
+A DBA/SRE types "show me the DDL for the products table in movr on the VA tenant." The system should:
 
 1. Identify that `cr_ddl_table` is the right tool
 2. Know that the cluster's host is 10.1.1.5, port 26257
@@ -173,7 +173,7 @@ Three embedding providers power the hybrid matching layer: Ollama nomic-embed-te
 
 The system also supports **voice input** via Whisper speech-to-text — three options: OpenAI's cloud API (~$0.006/min), whisper.cpp (local, free), or Python Whisper (local, free). Say "Roachie" as the wake word, and the rest is natural language.
 
-It also integrates with the broader ecosystem via **MCP (Model Context Protocol)** — 39 of the 77 tools are exposed as MCP-compatible SQL endpoints through Google's GenAI Toolbox. This means Claude Desktop, Cursor, VS Code Copilot, or any LangChain agent can use Roachie's DBA tools directly.
+It also integrates with the broader ecosystem via **MCP (Model Context Protocol)** — 39 of the 77 tools are exposed as MCP-compatible SQL endpoints through Google's GenAI Toolbox. This means Claude Desktop, Cursor, VS Code Copilot, or any LangChain agent can use Roachie's DBA/SRE tools directly.
 
 ## Why Bash?
 
@@ -183,7 +183,7 @@ A common question: why build all of this in bash instead of Python or Go?
 
 **Composability.** Each `cr_*` tool is a standalone script. It can be run directly, piped to other tools, called from cron jobs, or orchestrated by the NL interface. The tools don't know or care that an LLM chose them.
 
-**Transparency.** When a DBA asks "what did that command actually do?", the answer is a readable bash script, not a compiled binary or a Python class hierarchy. The SQL queries are right there in the source.
+**Transparency.** When a DBA/SRE asks "what did that command actually do?", the answer is a readable bash script, not a compiled binary or a Python class hierarchy. The SQL queries are right there in the source.
 
 It's not without trade-offs. Bash has no native JSON parsing (hence `jq`), no real data structures beyond arrays, and error handling is primitive. But for wrapping SQL queries and orchestrating CLI tools, it's hard to beat.
 
@@ -204,7 +204,7 @@ Each query gets routed to the right `cr_*` tool with the correct flags, executed
 
 ## What's Next
 
-The NL interface works well with cloud LLMs — 95-100% accuracy on the test suite. But the local model story needed work. Llama 8B at 50-60% accuracy wasn't useful enough for daily DBA work.
+The NL interface works well with cloud LLMs — 95-100% accuracy on the test suite. But the local model story needed work. Llama 8B at 50-60% accuracy wasn't useful enough for daily DBA/SRE work.
 
 Part 2 of this series covers the journey to make the local model competitive: semantic matching improvements, prompt unification, and LoRA fine-tuning that pushed accuracy from 50% to 90%.
 

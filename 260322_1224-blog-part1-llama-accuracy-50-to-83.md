@@ -4,7 +4,7 @@
 
 ---
 
-Roachie is a natural language interface for a CockroachDB toolkit — 77 bash CLI tools that DBAs use daily. Type "show me replication lag on the VA tenant" and the system picks the right tool, constructs the right flags, and runs it.
+Roachie is a natural language interface for a CockroachDB toolkit — bash CLI tools that DBAs/SREs can use daily. Type "show me replication lag on the VA tenant" and the system picks the right tool, constructs the right flags, and runs it.
 
 Cloud LLMs (Gemini, GPT-5, Claude) hit 95-100% accuracy almost immediately. But a local option was needed too. Privacy-sensitive environments, air-gapped networks, and the simple appeal of not paying per-token for every DBA query.
 
