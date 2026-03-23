@@ -1,4 +1,4 @@
-# Making Open-Source LLMs Work for CLI Tool Selection: Llama 8B from 50% to 90%
+# What Happens When You Teach a Small Language Model Your Tools?
 
 *Part 2 of 2 — The full journey of making a local, open-source model competitive with cloud LLMs for database tool selection.*
 
