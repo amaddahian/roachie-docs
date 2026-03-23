@@ -2,9 +2,13 @@
 
 *Part 2 of 2 — The full journey of making a local, open-source model competitive with cloud LLMs for database tool selection.*
 
+> **Disclaimer:** Roachie is a personal project. All trademarks referenced
+> are the property of their respective owners. The software is provided
+> "as-is" without warranty of any kind. Use at your own risk.
+
 ---
 
-In [Part 1](), the origin story covered why Roachie exists: 77 CockroachDB CLI tools that needed a natural language interface, with a firm requirement that everything works offline using local models. Cloud LLMs (Gemini, Claude, GPT-5) hit 95-100% accuracy immediately. The open-source model — Llama 3.1 8B running on Ollama — started at roughly 50-60%.
+In [Part 1](), the origin story covered why Roachie exists: 77 database CLI tools that needed a natural language interface, with a firm requirement that everything works offline using local models. Cloud LLMs (Gemini, Claude, GPT-5) hit 95-100% accuracy immediately. The open-source model — Llama 3.1 8B running on Ollama — started at roughly 50-60%.
 
 This is the story of closing that gap. Not all the way — 90% isn't 95% — but enough to make the local model genuinely useful for daily DBA work.
 
