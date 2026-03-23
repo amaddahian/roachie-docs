@@ -2,9 +2,9 @@
 
 *Part 2 of 2 — The full journey of making a local, open-source model competitive with cloud LLMs for database tool selection.*
 
-> **Disclaimer:** Roachie is a personal project. All trademarks referenced
-> are the property of their respective owners. The software is provided
-> "as-is" without warranty of any kind. Use at your own risk.
+> **Disclaimer:** This article describes a personal project and reflects the
+> author's own views. All trademarks referenced are the property of their
+> respective owners.
 
 ---
 

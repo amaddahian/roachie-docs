@@ -2,9 +2,9 @@
 
 *Part 1 of 2 — From bash scripts to a conversational DBA/SRE assistant, and why the gap between CLI power and GUI simplicity needed bridging.*
 
-> **Disclaimer:** Roachie is a personal project. All trademarks referenced
-> are the property of their respective owners. The software is provided
-> "as-is" without warranty of any kind. Use at your own risk.
+> **Disclaimer:** This article describes a personal project and reflects the
+> author's own views. All trademarks referenced are the property of their
+> respective owners.
 
 ---
 
