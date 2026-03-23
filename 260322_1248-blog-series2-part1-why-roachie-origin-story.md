@@ -74,12 +74,12 @@ Simple in concept. Hard in practice. The challenges:
 
 ### Challenge 1: Tool Selection Across 77 Options
 
-Given a natural language query, which of 77 tools is the right one? "Show me table sizes" could be `cr_size`, `cr_db_size`, `cr_tables`, or `cr_db_tables_rowcount`. "Check the health" could be `cr_health`, `cr_health_check`, `cr_monitor`, or `cr_watch`.
+Given a natural language query, which of 77 tools is the right one? As an example, "Show me table sizes" or "Check the health" could potentially map to different tools. 
 
 The solution: **hybrid tool matching**. A combination of regex keyword scoring and semantic embedding similarity, using a two-model architecture:
 
-- **Embedding model** (small, fast) computes similarity between the query and pre-computed tool description embeddings
 - **Regex** acts as an intent gate — if regex finds nothing, semantic matching is skipped (avoids false positives on unrelated queries)
+- **Embedding model** (small, fast) computes similarity between the query and pre-computed tool description embeddings
 - Results are merged: semantic matches get priority, regex supplements, deduplicated, top 7
 
 Three embedding providers are supported (Ollama 768-dim, OpenAI 1536-dim, Gemini 3072-dim), and the combined approach hits 99-100% tool selection accuracy across 135 test queries.
@@ -127,7 +127,7 @@ The solution is aggressive context injection:
 
 ### Challenge 5: Offline and Air-Gapped Operation
 
-This was a firm design requirement. Many database environments have no internet access. The system had to work entirely offline with a local model.
+This was a firm design requirement - airgapped. The system had to work entirely offline with a local model.
 
 Ollama with Llama 3.1 8B running on a MacBook meets this requirement — no API keys, no network calls, no data leaving the machine. The embedding model (nomic-embed-text) also runs locally. Even voice input works offline via whisper.cpp.
 
