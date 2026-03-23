@@ -1,6 +1,10 @@
-# Why Build a Natural Language Interface for CockroachDB? The Origin Story Behind Roachie
+# Why Build a Natural Language Interface for a Distributed SQL Database? The Origin Story Behind Roachie
 
 *Part 1 of 2 — From bash scripts to a conversational DBA/SRE assistant, and why the gap between CLI power and GUI simplicity needed bridging.*
+
+> **Disclaimer:** Roachie is a personal project. All trademarks referenced
+> are the property of their respective owners. The software is provided
+> "as-is" without warranty of any kind. Use at your own risk.
 
 ---
 
@@ -8,9 +12,9 @@
 
 Database tooling has always had a split personality.
 
-On one side: **raw power**. SQL consoles, CLI tools, `cockroach sql`, shell scripts. Full control, full flexibility, steep learning curve. A DBA/SRE who knows the right query can extract anything from the catalog — slow queries, lock contention, replication lag, schema diffs. But knowing the right query might also involve access to internal metatdata for extention/advanced-feature support scenarios which could be a bit more involved.
+On one side: **raw power**. SQL consoles, CLI tools, shell scripts. Full control, full flexibility, steep learning curve. A DBA/SRE who knows the right query can extract anything from the catalog — slow queries, lock contention, replication lag, schema diffs. But knowing the right query might also involve access to internal system tables for advanced-feature support scenarios which could be a bit more involved.
 
-On the other side: **simplicity**. GUI dashboards, DB Console, monitoring UIs. Point and click, see appropriate charts, and will get a high-level view. 
+On the other side: **simplicity**. GUI dashboards, built-in monitoring UIs. Point and click, see appropriate charts, and will get a high-level view.
 
 But the moment something goes wrong and specially involving more advanced issues —such as changefeed lags, complex job lifecycle failures, or hard-to-attribute latency regressions—the dashboard alone might not sufficient for effective diagnosis and it's back to the CLI.
 
@@ -18,13 +22,13 @@ The question that started Roachie: **what if there was something in between?**
 
 ![The NLP Bridge — connecting CLI power to conversational simplicity](https://github.com/amaddahian/roachie/blob/main/docs/images/nlp_bridge.png?raw=true)
 
-Not a GUI. Not a raw SQL console. A natural language interface that understands CockroachDB — one where a DBA/SRE could type "show me the top 5 slowest queries on the VA tenant" and get the actual answer, not a tutorial on how to write the query.
+Not a GUI. Not a raw SQL console. A natural language interface that understands the database — one where a DBA/SRE could type "show me the top 5 slowest queries on the VA tenant" and get the actual answer, not a tutorial on how to write the query.
 
 ## The Journey: It Started with Bash Scripts
 
 Roachie didn't originally start as an AI project. It started as a collection of bash scripts.
 
-Working with CockroachDB's self-hosted multi-tenant deployments meant running the same complex queries repeatedly — checking replication lag, comparing schemas between databases, finding who has access to what, generating DDLs, checking for range distributions and/or other distributed attributes of the overall system. Each query involved remembering the right `crdb_internal` tables, the right joins, the right flags.
+Working with self-hosted multi-tenant database deployments meant running the same complex queries repeatedly — checking replication lag, comparing schemas between databases, finding who has access to what, generating DDLs, checking for range distributions and/or other distributed attributes of the overall system. Each query involved remembering the right internal system tables, the right joins, the right flags.
 
 So those queries became scripts. `cr_query_stats` for slow queries. `cr_tables` for table listings. `cr_ddl_diff` for schema comparison. `cr_replication_lag` for PCR health. Each one a focused bash tool that wraps a complex SQL query and returns structured, actionable output.
 
@@ -40,11 +44,11 @@ To accommodate this, 70+ of these `cr_*` tools accumulated, organized into categ
 
 The full tool categories are meant to span the entire spectrum of DBA/SRE operations:
 
-Each tool is self-contained — runs anywhere with bash, `cockroach`, `jq`, and `curl`. No Python dependencies, no npm packages, no compilation step. Copy the scripts to a server and they work.
+Each tool is self-contained — runs anywhere with bash, the database CLI, `jq`, and `curl`. No Python dependencies, no npm packages, no compilation step. Copy the scripts to a server and they work.
 
 ## The Infrastructure Layer: Example Multi-Tenant Clusters with Peripherals
 
-The tools needed an environment to run against. CockroachDB's self-hosted multi-tenant architecture — physical clusters with virtual clusters (tenants) inside — is powerful and rich for this demo. Setting up a proper test environment involves:
+The tools needed an environment to run against. A self-hosted multi-tenant distributed SQL architecture — physical clusters with virtual clusters (tenants) inside — is powerful and rich for this demo. Setting up a proper test environment involves:
 
 - **Cluster A** (primary) with multiple virtual clusters (va, vb, system)
 - **Cluster B** (standby) receiving Physical Cluster Replication (PCR) from A
@@ -55,7 +59,7 @@ The tools needed an environment to run against. CockroachDB's self-hosted multi-
 
 Managing all of this manually is tedious. So `roachman` was built — an interactive cluster manager that handles the full lifecycle: create clusters, configure tenants, start replication, set up monitoring, run upgrades, and manage failovers. All containerized, all reproducible.
 
-![Infrastructure Architecture — containerized CockroachDB clusters with full peripheral integration](https://github.com/amaddahian/roachie/blob/main/docs/images/infrastructure.png?raw=true)
+![Infrastructure Architecture — containerized database clusters with full peripheral integration](https://github.com/amaddahian/roachie/blob/main/docs/images/infrastructure.png?raw=true)
 
 At this point, the toolkit was useful but had the same limitation as every CLI tool: you had to know which tool to use and what flags to pass. `cr_ddl_table -h 10.1.1.5 -p 26257 -t va -d movr products` is powerful, but it assumes knowledge of the tool name, flag syntax, hostname, port, and tenant name.
 
@@ -88,7 +92,7 @@ Three embedding providers are supported (Ollama 768-dim, OpenAI 1536-dim, Gemini
 
 Letting an LLM generate shell commands is dangerous. The system needed defense-in-depth:
 
-1. **Command whitelist** — only `cr_*` tools and `cockroach sql` are allowed
+1. **Command whitelist** — only `cr_*` tools and the database CLI are allowed
 2. **Metacharacter blocking** — no pipes, redirects, backticks, or command substitution
 3. **SQL mutation guard** — blocks DROP, DELETE, GRANT, ALTER in SQL commands (configurable by role)
 4. **RBAC** — four roles (admin, dba, analyst, monitor) with different permissions
@@ -127,7 +131,7 @@ The solution is aggressive context injection:
 
 ### Challenge 5: Offline and Air-Gapped Operation
 
-This was a firm design requirement - airgapped. The system had to work entirely offline with a local model.
+This was a firm design requirement - air-gapped. The system had to work entirely offline if necessary with a local model.
 
 Ollama with Llama 3.1 8B running on a MacBook meets this requirement — no API keys, no network calls, no data leaving the machine. The embedding model (nomic-embed-text) also runs locally. Even voice input works offline via whisper.cpp.
 
@@ -152,7 +156,7 @@ Layer 3: Prompt Assembly & LLM
 Layer 4: Security & Execution
   JSON parse → 6-layer security gates → Human confirmation → Execute
 
-Layer 5: CockroachDB Operations
+Layer 5: Database Operations
   77 cr_* tools → Sandboxed execution → Cluster
 
 Layer 6: Output, Metrics & Learning
@@ -169,7 +173,7 @@ It also integrates with the broader ecosystem via **MCP (Model Context Protocol)
 
 A common question: why build all of this in bash instead of Python or Go?
 
-**Portability.** Bash is on every Linux server, every Mac, every container. No runtime to install, no dependencies to manage, no virtual environments to activate. Copy the scripts to a server with `cockroach` and `jq` installed, and everything works. In air-gapped environments where installing Python packages requires security review, this matters.
+**Portability.** Bash is on every Linux server, every Mac, every container. No runtime to install, no dependencies to manage, no virtual environments to activate. Copy the scripts to a server with the database CLI and `jq` installed, and everything works. In air-gapped environments where installing Python packages requires security review, this matters.
 
 **Composability.** Each `cr_*` tool is a standalone script. It can be run directly, piped to other tools, called from cron jobs, or orchestrated by the NL interface. The tools don't know or care that an LLM chose them.
 
@@ -201,5 +205,3 @@ Part 2 of this series covers the journey to make the local model competitive: se
 ---
 
 *Part 2: [Making Open-Source LLMs Work for CLI Tool Selection: Llama 8B from 50% to 90%]()*
-
-*Roachie is open source: [github.com/amaddahian/roachie](https://github.com/amaddahian/roachie)*
