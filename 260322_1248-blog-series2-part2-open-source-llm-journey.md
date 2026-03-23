@@ -115,23 +115,20 @@ The training ran on **MLX**, Apple's native ML framework for Apple Silicon:
 
 The validation loss curve told the story of a dataset that's too small:
 
-```
-Val Loss  (Train Loss)
-3.31  *                                                    iter 1   (baseline)
-1.32  .     .     .     .     .     .     .     .     .  x  iter 1000 (0.029)
-1.07  .     .     .     .     x     .     .     .     .  .  iter 500  (0.038)
-0.92  .     .     .     .     .     .     .     x     .  .  iter 800  (0.030)
-0.87  .     .     x     .     .     .     .     .     .  .  iter 300  (0.085)
-0.79  .     .     .     .     .     .     x     .     .  .  iter 700  (0.029)
-0.75  .     .     .     x     .     .     .     .     .  .  iter 400  (0.055)
-0.53  .     .     .     .     .     .     .     .     x  .  iter 900  (0.028)
-0.39  .     .     .     .     .     .     .     .     .  .
-0.38  .     o     .     .     .     .     .     .     .  .  iter 200  (0.210)
-0.33  .     .     .     .     .     *     .     .     .  .  iter 600  (0.035)
-      100   200   300   400   500   600   700   800   900  1000
+| Iteration | Validation Loss | Train Loss |
+|-----------|----------------|------------|
+| 1 (Baseline) | 3.31 | — |
+| 200 | 0.376 | 0.210 |
+| 300 | 0.870 | 0.085 |
+| 400 | 0.750 | 0.055 |
+| 500 | 1.070 | 0.038 |
+| **600 (Best)** | **0.332** | **0.035** |
+| 700 | 0.790 | 0.029 |
+| 800 | 0.920 | 0.030 |
+| 900 | 0.530 | 0.028 |
+| 1000 | 1.320 | 0.029 |
 
-      o = iter 200 (val 0.376)    * = iter 600 (val 0.332, selected)
-```
+![Validation and Train Loss Over Iterations](https://github.com/amaddahian/roachie-docs/blob/main/images/Code_Generated_Image-valueLoss-TrainingLoss.png?raw=true)
 
 Training loss dropped to near-zero by iteration 300 (full memorization). Validation loss oscillated wildly — the hallmark of overfitting on limited data.
 
