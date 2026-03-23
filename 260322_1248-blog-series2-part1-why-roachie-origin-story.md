@@ -1,4 +1,4 @@
-# Why Build a Natural Language Interface for a Distributed SQL Database? The Origin Story Behind Roachie
+# What If You Could Talk to Your Database Tools?
 
 *Part 1 of 2 — From bash scripts to a conversational DBA/SRE assistant, and why the gap between CLI power and GUI simplicity needed bridging.*
 
