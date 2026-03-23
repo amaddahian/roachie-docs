@@ -14,6 +14,8 @@ On the other side: **simplicity**. GUI dashboards, DB Console, monitoring UIs. P
 
 The question that started Roachie: **what if there was something in between?**
 
+![The NLP Bridge — connecting CLI power to conversational simplicity](https://github.com/amaddahian/roachie/blob/main/docs/images/nlp_bridge.png?raw=true)
+
 Not a GUI. Not a raw SQL console. A natural language interface that understands CockroachDB — one where a DBA could type "show me the top 5 slowest queries on the VA tenant" and get the actual answer, not a tutorial on how to write the query.
 
 ## The Journey: It Started with Bash Scripts
@@ -34,6 +36,20 @@ Over time, 77 of these `cr_*` tools accumulated, organized into categories:
 | Data Operations | Backup, restore, migrate, clone, unload data |
 | Cluster Management | Rolling upgrades, Ceph/S3 storage, Kafka CDC, Prometheus/Grafana |
 
+The full tool categories span the entire spectrum of DBA operations:
+
+| Category | Examples |
+|----------|----------|
+| Statistics & Analysis | `cr_get`, `cr_genstats`, `cr_check_statistics`, `cr_skew` |
+| Slow Queries & Performance | `cr_query_stats`, `cr_query_history`, `cr_plan`, `cr_workload` |
+| Tables & Size | `cr_tables`, `cr_size`, `cr_db_size`, `cr_db_tables_rowcount` |
+| DDL & Schema | `cr_ddl`, `cr_ddl_table`, `cr_ddl_view`, `cr_ddl_diff`, `cr_catalog_diff` |
+| Users & Permissions | `cr_my_access`, `cr_my_grants`, `cr_get_acl`, `cr_find_acl_issues` |
+| Sessions & Locks | `cr_session`, `cr_who`, `cr_show_locks`, `cr_transactions` |
+| Health & Monitoring | `cr_health`, `cr_monitor`, `cr_watch`, `cr_health_check` |
+| Backup & Migration | `cr_backup`, `cr_unload`, `cr_clone`, `cr_migrate` |
+| Views | `cr_find_views`, `cr_ddl_view`, `cr_check_views`, `cr_grep_views` |
+
 Each tool is self-contained — runs anywhere with bash, `cockroach`, `jq`, and `curl`. No Python dependencies, no npm packages, no compilation step. Copy the scripts to a server and they work.
 
 ## The Infrastructure Layer: Multi-Tenant Clusters with Peripherals
@@ -48,6 +64,8 @@ The tools needed an environment to run against. CockroachDB's self-hosted multi-
 - **HAProxy** for load balancing
 
 Managing all of this manually is tedious. So `roachman` was built — an interactive cluster manager that handles the full lifecycle: create clusters, configure tenants, start replication, set up monitoring, run upgrades, and manage failovers. All containerized, all reproducible.
+
+![Infrastructure Architecture — containerized CockroachDB clusters with full peripheral integration](https://github.com/amaddahian/roachie/blob/main/docs/images/infrastructure.png?raw=true)
 
 At this point, the toolkit was useful but had the same limitation as every CLI tool: you had to know which tool to use and what flags to pass. `cr_ddl_table -h 10.1.1.5 -p 26257 -t va -d movr products` is powerful, but it assumes knowledge of the tool name, flag syntax, hostname, port, and tenant name.
 
@@ -129,6 +147,8 @@ But local models are less accurate than cloud models. Gemini hits 95-100% on the
 
 After months of iteration, the system has six layers:
 
+![AI Architecture — layered NL processing pipeline](https://github.com/amaddahian/roachie/blob/main/docs/images/ai_architecture.png?raw=true)
+
 ```
 Layer 1: Input & Interface
   CLI / Voice (Whisper STT) / Batch mode
@@ -149,6 +169,10 @@ Layer 6: Output, Metrics & Learning
   Display results → Log metrics (tokens, latency, accuracy) → User feedback
 ```
 
+Three embedding providers power the hybrid matching layer: Ollama nomic-embed-text (768-dim), OpenAI text-embedding-3-small (1536-dim), and Gemini gemini-embedding-001 (3072-dim). Combined with regex, accuracy reaches 99-100% across a 135-query test suite.
+
+The system also supports **voice input** via Whisper speech-to-text — three options: OpenAI's cloud API (~$0.006/min), whisper.cpp (local, free), or Python Whisper (local, free). Say "Roachie" as the wake word, and the rest is natural language.
+
 It also integrates with the broader ecosystem via **MCP (Model Context Protocol)** — 39 of the 77 tools are exposed as MCP-compatible SQL endpoints through Google's GenAI Toolbox. This means Claude Desktop, Cursor, VS Code Copilot, or any LangChain agent can use Roachie's DBA tools directly.
 
 ## Why Bash?
@@ -162,6 +186,21 @@ A common question: why build all of this in bash instead of Python or Go?
 **Transparency.** When a DBA asks "what did that command actually do?", the answer is a readable bash script, not a compiled binary or a Python class hierarchy. The SQL queries are right there in the source.
 
 It's not without trade-offs. Bash has no native JSON parsing (hence `jq`), no real data structures beyond arrays, and error handling is primitive. But for wrapping SQL queries and orchestrating CLI tools, it's hard to beat.
+
+## What It Looks Like in Practice
+
+![Sample prompts and responses](https://github.com/amaddahian/roachie/blob/main/docs/images/sample_prompts.png?raw=true)
+
+A few examples of what can be asked in plain English:
+
+- *"Show me the top 3 long running queries on cluster A system tenant"*
+- *"List all tables in the test_lab database in system tenant on cluster A in inventory_schema schema"*
+- *"Show me the DDL diff between db1 and db2 databases on system tenant on cluster A"*
+- *"Get the ACL for the products table in system tenant on cluster A in database test_lab"*
+- *"Backup database movr to crdb-test-backups bucket on system tenant on cluster A"*
+- *"What is the current PCR replication lag for the vb tenant on cluster B?"*
+
+Each query gets routed to the right `cr_*` tool with the correct flags, executed against the cluster, and the result displayed — all without the user needing to know tool names or flag syntax.
 
 ## What's Next
 
