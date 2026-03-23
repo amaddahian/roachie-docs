@@ -92,3 +92,20 @@ After cleanup:
 | Inference (roachie-3b, Q4) | ~3 GB | Any 8+ GB machine |
 
 The fine-tuned model (`roachie-8b-ft`) runs in FP16 because Ollama re-imports at full precision. This means it needs roughly 3x the memory of the Q4-quantized base model. On a 32 GB M1 Pro, it fits comfortably but leaves less room for other applications. Future optimization: export the fine-tuned model at Q4_K_M quantization to halve the memory footprint with minimal accuracy loss.
+
+---
+
+## Alternative Models: 12B Class
+
+Two 12B models have been evaluated as potential replacements or complements to Llama 3.1 8B:
+
+| Model | Parameters | Q4 Size | Accuracy (no fine-tuning) | Avg Latency | Notes |
+|-------|-----------|---------|--------------------------|-------------|-------|
+| Mistral Nemo 12B | 12B | ~7.1 GB | **87.7%** (64/73) | ~79s | Near-perfect tool selection; flag errors only |
+| Gemma 3 12B | 12B | ~8.1 GB | *Testing in progress* | ~112s | Initial run failed (memory contention); solo rerun active |
+
+Mistral Nemo 12B achieved 87.7% accuracy **without any fine-tuning**, nearly matching the LoRA fine-tuned Llama 3.1 8B (90%). All 8 failures were flag-level errors — the model selected the correct tool in 72/73 cases. The primary trade-off is latency: ~79s per query vs ~3-5s for Llama 8B.
+
+Both models have MLX-compatible variants on HuggingFace. The existing `run_lora.sh` pipeline should work with minimal changes (update `BASE_MODEL` variable). With LoRA fine-tuning, 93-95% accuracy is plausible for either model.
+
+See [260322_1554-model-comparison-gemma3-mistral-nemo-vs-llama.md](260322_1554-model-comparison-gemma3-mistral-nemo-vs-llama.md) for the full comparison and detailed failure analysis.

@@ -198,6 +198,8 @@ The gap from 90% to 95% is harder than the gap from 50% to 90%. Several approach
 
 **Larger model.** Llama 3.1 70B would handle the complex tools (migration, backup, DDL with positional args) better, but requires ~40 GB of memory and is 5-10x slower. Worth testing on machines with 64+ GB RAM.
 
+**Alternative 12B models.** Early testing of Mistral Nemo 12B (no fine-tuning) achieved 87.7% accuracy on the same 73-prompt suite — nearly matching the fine-tuned Llama's 90%. Tool selection was near-perfect (72/73); all failures were flag-level errors. The trade-off: ~79s average latency per query (vs ~3-5s for Llama 8B) and ~3 GB more RAM. With LoRA fine-tuning, 93-95% is plausible. Google's Gemma 3 12B is also under evaluation.
+
 ## Lessons for Anyone Building with Local LLMs
 
 **1. Don't simplify the prompt for small models.** The instinct is to strip context to save tokens. Resist it. Measure the actual token count first. Small models need *more* context, not less — they can't infer what large models can.
