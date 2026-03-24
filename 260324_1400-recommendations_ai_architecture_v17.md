@@ -28,7 +28,7 @@
 
 ### P1 — Critical (3 items)
 
-#### R1: Cosine Similarity Division by Zero
+#### R1: Cosine Similarity Division by Zero — FIXED
 **Files:** `src/lib/llm_prompt.sh:206-216`, `src/lib/llm_prompt.sh:260-270`
 **Issue:** Both `_semantic_match_tools()` and `_doc_rag_retrieve()` compute cosine similarity as:
 ```
@@ -46,7 +46,7 @@ If either magnitude is zero (malformed embedding API response, corrupted embeddi
 
 ---
 
-#### R2: `_check_api_error()` Logic Potentially Inverted
+#### R2: `_check_api_error()` Logic Potentially Inverted — FIXED
 **Files:** `src/lib/llm_providers.sh:727`
 **Issue:** The function checks:
 ```bash
@@ -77,7 +77,7 @@ return 0
 
 ---
 
-#### R3: No Execution Timeout for Commands
+#### R3: No Execution Timeout for Commands — FIXED
 **Files:** `src/lib/llm_exec.sh:290-324`, `src/lib/llm_assistant.sh:951`
 **Issue:** `_safe_execute_command()` runs `cr_*` tools with no timeout. A hung tool (e.g., `cr_watch`, slow query, `cr_workload` with no duration) blocks the REPL indefinitely. Agent loop max iterations (3) doesn't help because timeout is per-command, not per-iteration.
 
@@ -101,7 +101,7 @@ Exit code 124 = timeout. Feed "command timed out after ${_timeout}s" back to LLM
 
 ### P2 — High Priority (8 items)
 
-#### R4: Three Tools Missing from `regex_keywords.tsv`
+#### R4: Three Tools Missing from `regex_keywords.tsv` — FIXED
 **Files:** `tools/utils/regex_keywords.tsv`
 **Issue:** `cr_create_cluster`, `cr_remove_cluster`, and `cr_upgrade_version` are present in `tool_descriptions.txt` (77 tools) and all embedding files (77 tools) but absent from `regex_keywords.tsv` (74 tools). Since regex acts as the intent gate (if regex finds nothing, semantic is skipped), queries about cluster creation/removal/upgrades may fail to match if no other tool's keywords overlap.
 
@@ -117,7 +117,7 @@ cr_upgrade_version	upgrade version update rolling upgrade finalize
 
 ---
 
-#### R5: cr_config_event_history Flag Contradiction Between Templates
+#### R5: cr_config_event_history Flag Contradiction Between Templates — FIXED
 **Files:** `tools/utils/prompts/tool_notes.txt:59`, `tools/utils/prompts/tool_specific_rules.txt:3-4`
 **Issue:** `tool_notes.txt` line 59 shows:
 ```
@@ -137,7 +137,7 @@ cr_config_event_history --event-type restart --limit 10 --insecure
 
 ---
 
-#### R6: Path Traversal via `_NL_TOOLS_VERSION`
+#### R6: Path Traversal via `_NL_TOOLS_VERSION` — FIXED
 **Files:** `src/lib/llm_prompt.sh:24-31`
 **Issue:** `_nl_resolve_resource()` interpolates `$_NL_TOOLS_VERSION` directly into a file path:
 ```bash
@@ -155,7 +155,7 @@ Normally safe because `_detect_tools_directory()` sets the value via regex parsi
 
 ---
 
-#### R7: `_save_success_persistent()` Has No Test Coverage
+#### R7: `_save_success_persistent()` Has No Test Coverage — FIXED
 **Files:** `src/lib/llm_metrics.sh:595-655`
 **Issue:** The symmetric `_save_failure_persistent()` function has tests in `test_llm_metrics.sh` (lines 136-165), but `_save_success_persistent()` and `_load_recent_successes()` have zero test coverage. These functions handle deduplication, timestamp filtering (30 days), and max entry limits (15) — all untested.
 
@@ -218,7 +218,7 @@ Normally safe because `_detect_tools_directory()` sets the value via regex parsi
 
 ---
 
-#### R11: SQL Mutation Detection Gaps (Multi-Statement, Comments, String Literals)
+#### R11: SQL Mutation Detection Gaps (Multi-Statement, Comments, String Literals) — FIXED
 **Files:** `src/lib/llm_exec.sh:176-204`, `tests/unit/test_nl_security.sh`
 **Issue:** `_check_sql_mutation()` tests cover single-line mutations well but miss:
 - SQL comments hiding mutations: `SELECT 1; -- DROP TABLE users`
@@ -235,7 +235,7 @@ Normally safe because `_detect_tools_directory()` sets the value via regex parsi
 
 ### P3 — Medium Priority (7 items)
 
-#### R12: Agent Loop Message History Grows Unbounded
+#### R12: Agent Loop Message History Grows Unbounded — FIXED
 **Files:** `src/lib/llm_assistant.sh:1475-1603`
 **Issue:** During agent loop iterations, `_nl_messages_json` grows by 2 messages per iteration (6 total for max 3 iterations) plus 2 more at the session level. No per-iteration trimming occurs — only at session boundary. Risk: context overflow on long agent loops with verbose command output (each output truncated to 4000 chars but still significant).
 
@@ -246,7 +246,7 @@ Normally safe because `_detect_tools_directory()` sets the value via regex parsi
 
 ---
 
-#### R13: Persistent Learning DB Corruption Recovery
+#### R13: Persistent Learning DB Corruption Recovery — FIXED
 **Files:** `src/lib/llm_metrics.sh:437-510, 595-655`
 **Issue:** When loading persistent DB files, malformed JSON lines are silently skipped. If a file is corrupted (partial write, disk error), important failure/success patterns are lost without notification. The `flock` mechanism prevents concurrent write corruption, but power loss or signal interruption during write could still produce partial lines.
 
@@ -266,7 +266,7 @@ _validate_jsonl_db() {
 
 ---
 
-#### R14: Streaming Temp File Orphans on Signal
+#### R14: Streaming Temp File Orphans on Signal — FIXED
 **Files:** `src/lib/providers/anthropic.sh:51,81`, `openai.sh:64,91`, `gemini.sh:55,83`
 **Issue:** Streaming functions create temp files for headers/rc with `trap ... RETURN INT TERM` cleanup. However, curl runs in a process substitution (`< <(curl ...)`), so signal delivery to the subshell is complex. Accumulated orphaned temp files in `/tmp` over multiple interrupted sessions is possible.
 
@@ -280,7 +280,7 @@ find /tmp -name ".roachie_metrics_*" -mtime +1 -delete 2>/dev/null
 
 ---
 
-#### R15: Few-Shot Examples Missing Complex Tools
+#### R15: Few-Shot Examples Missing Complex Tools — FIXED
 **Files:** `tools/utils/prompts/few_shot_examples.txt`
 **Issue:** Only 10 examples in 12 lines. Complex tools with dual-parameter design (`cr_ddl_diff`, `cr_migrate`, `cr_catalog_diff`) are not represented. These are the tools most likely to cause flag errors because they use `--source-host`/`--target-host` instead of the standard `-h` flag.
 
@@ -294,7 +294,7 @@ cr_ddl_diff --source-host 10.1.1.5 --source-port 26257 --target-host 10.1.1.6 --
 
 ---
 
-#### R16: Token Count Range Validation
+#### R16: Token Count Range Validation — FIXED
 **Files:** `src/lib/llm_providers.sh:702-712`
 **Issue:** `_write_token_counts()` validates that the first line is numeric but doesn't check for negative values or impossibly large values (>1M). If a provider returns garbage, cost calculations could be distorted.
 
@@ -328,7 +328,7 @@ fi
 
 ---
 
-#### R18: `flag_val` jq Function Duplicated 3x
+#### R18: `flag_val` jq Function Duplicated 3x — FIXED
 **Files:** `src/lib/llm_providers.sh:560-625`
 **Issue:** The `flag_val` jq helper is identically defined inside three separate jq expressions (Anthropic, OpenAI, Gemini cases of `_convert_tool_call_to_json`). Each copy is 5 lines.
 
