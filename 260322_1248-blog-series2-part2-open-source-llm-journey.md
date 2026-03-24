@@ -52,9 +52,19 @@ The batch test runner had three Ollama-specific code paths that gave Llama a str
 
 **3. A hardcoded connection reminder** instead of the dynamic one that included actual cluster hostnames and ports.
 
-The assumption behind all three: Llama's 16K context window can't handle the full prompt.
+The assumption behind all three: Llama's 16K context window can't handle the full prompt. (Llama 3.1 supports 128K natively, but the Ollama Modelfile sets `num_ctx 16384` to keep memory usage reasonable on laptops.)
 
-The assumption was wrong. Llama's tokenizer is roughly **3x more efficient** than Gemini's for technical content. The full prompt with all 7 templates and 7 enriched tools consumed ~5,200 Ollama tokens — well within the 16K budget. The compact prompt was solving a problem that didn't exist.
+The assumption was wrong — because it ignored how tokenizers work. Each LLM has its own tokenizer that breaks text into tokens differently. For the same CLI content (bash commands, flag names, JSON), Llama's tokenizer (SentencePiece/BPE) produces significantly fewer tokens than Gemini's. A string like `cr_ddl_table -h localhost -p 26257 -t system --insecure` might become ~10 Llama tokens but ~30 Gemini tokens — Llama's vocabulary handles common CLI patterns as fewer, larger chunks.
+
+Measuring the actual token counts made this concrete:
+
+| Content | Gemini Tokens | Llama Tokens | Ratio |
+|---------|--------------|--------------|-------|
+| Full system prompt | ~12,000 | ~4,000 | 3.0x |
+| 7 enriched tools | ~3,500 | ~1,200 | 2.9x |
+| **Total** | **~15,500** | **~5,200** | **3.0x** |
+
+The full prompt consumed ~5,200 Llama tokens — well within the 16K budget, with 10K+ tokens free for conversation history and response. Comparing "16K Llama tokens" to "128K Gemini tokens" was apples to oranges: 16K Llama tokens hold roughly the same text as 48K Gemini tokens. The compact prompt was solving a problem that didn't exist.
 
 The fix was three lines of code deletion. Remove the `if ollama` branches. Give every provider the same prompt.
 
