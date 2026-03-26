@@ -76,3 +76,99 @@ Each item will be updated to **FIXED** with a brief description of the change ma
 15. **T2-1** (DPO training) — training pipeline extension
 16. **T1-7** (Cross-encoder re-ranking) — requires additional model/API
 17. **T2-3** (Daemon/Watch mode) — largest scope, new binary
+
+---
+
+## CLI Summary
+
+```
+Table 1: Medium-Priority Recommendations — Tier 1 (4+ reports)
+
+#   ID     Recommendation                                  Area         Effort  Reports  Status
+──  ─────  ──────────────────────────────────────────────  ───────────  ──────  ───────  ───────
+1   T1-1   Goal decomposition / planning phase             Agent Loop   Medium  8        PENDING
+2   T1-4   Retrieval quality tracking / feedback loop       Retrieval    Medium  6        PENDING
+3   T1-7   Cross-encoder re-ranking after retrieval         Retrieval    Medium  5        PENDING
+4   T1-8   Session summary persistence / cross-session mem  Memory       Medium  5        PENDING
+5   T1-9   Capture user corrections as training data        Learning     Medium  5        PENDING
+6   T1-10  Expand doc knowledge base (14 → 50+ chunks)     RAG          Medium  5        PENDING
+```
+
+```
+Table 2: Medium-Priority Recommendations — Tier 2 (2-3 reports)
+
+#    ID     Recommendation                                  Area          Effort  Reports  Status
+──   ─────  ──────────────────────────────────────────────  ────────────  ──────  ───────  ───────
+7    T2-1   DPO (Direct Preference Optimization) training   Fine-Tuning   Medium  3        PENDING
+8    T2-2   LLM-as-a-Judge in batch pipeline                Evaluation    Low     3        PENDING
+9    T2-3   Daemon/Watch mode for persistent monitoring     Deployment    High    3        PENDING
+10   T2-4   Audit logging for command executions            Governance    Medium  3        PENDING
+11   T2-5   Confidence scoring in tool selection            Decisions     Medium  3        PENDING
+12   T2-10  Reciprocal Rank Fusion (RRF)                    Retrieval     Medium  2        PENDING
+13   T2-11  Self-evaluation after command execution         Agent Loop    Medium  3        PENDING
+14   T2-12  Tiered model selection by query complexity      LLM / Cost    Medium  3        PENDING
+15   T2-13  Tool chain documentation                        Prompts       Low     2        PENDING
+16   T2-14  Result quality templates per tool category      Output        Medium  2        PENDING
+17   T2-15  Negative/multi-turn training examples           Training      Medium  2        PENDING
+```
+
+```
+Table 3: Already Completed (from low-effort batch)
+
+ID    Recommendation                           Status
+────  ─────────────────────────────────────    ──────
+T2-6  Per-stage latency tracking               FIXED
+T2-7  Task-specific role modifiers             FIXED
+T2-8  Provenance metadata in embedding files   FIXED
+T2-9  Quality gate after embedding regen       FIXED
+```
+
+```
+Table 4: Suggested Implementation Order (impact-to-effort ratio)
+
+Priority  ID     Recommendation                       Effort  Reports  Rationale
+────────  ─────  ───────────────────────────────────  ──────  ───────  ──────────────────────────────
+1         T2-2   LLM-as-a-Judge                       Low     3        Easiest remaining; high leverage
+2         T2-13  Tool chain documentation              Low     2        Content only; no code changes
+3         T1-4   Retrieval quality tracking             Medium  6        Correlation on existing CSV data
+4         T1-1   Goal decomposition / planning         Medium  8        #1 most-recommended improvement
+5         T1-9   Corrections as training data           Medium  5        Connects feedback to pipeline
+6         T1-10  Expand doc chunks (14 → 50+)          Medium  5        Content authoring only
+7         T1-8   Session summary persistence            Medium  5        File-based, straightforward
+8         T2-15  Multi-turn training examples           Medium  2        Content authoring for training
+9         T2-5   Confidence scoring                     Medium  3        JSON schema + prompt change
+10        T2-11  Self-evaluation                        Medium  3        Extends agent loop
+11        T2-4   Audit logging                          Medium  3        CSV append in exec path
+12        T2-12  Tiered model selection                 Medium  3        Routing logic in dispatcher
+13        T2-14  Result quality templates               Medium  2        Prompt templates per category
+14        T2-10  Reciprocal Rank Fusion (RRF)           Medium  2        Scoring formula in enrichment
+15        T2-1   DPO training                           Medium  3        Training pipeline extension
+16        T1-7   Cross-encoder re-ranking               Medium  5        Requires additional model/API
+17        T2-3   Daemon/Watch mode                      High    3        Largest scope; new binary
+```
+
+```
+Table 5: Summary Statistics
+
+Category                 Count    Percentage
+───────────────────────  ─────    ──────────
+Tier 1 (4+ reports)      6        35%
+Tier 2 (2-3 reports)     11       65%
+───────────────────────  ─────    ──────────
+Total pending            17       100%
+Already completed        4        (from low-effort batch)
+
+Effort breakdown:
+  Low effort             2        12%
+  Medium effort          14       82%
+  High effort            1        6%
+
+Area breakdown:
+  Retrieval              3        18%
+  Agent Loop             2        12%
+  Training / Learning    4        24%
+  Prompts / Output       3        18%
+  Memory / Governance    2        12%
+  LLM / Evaluation       2        12%
+  Deployment             1        6%
+```
