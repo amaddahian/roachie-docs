@@ -193,18 +193,18 @@ This is documentation/tooling — not a code fix.
 
 ## Summary
 
-| # | Recommendation | Effort | Priority | Category |
-|---|---------------|--------|----------|----------|
-| R1 | Decompose `_run_batch()` 973 lines | Medium | High | Code maintainability |
-| R2 | Fix context trim 80% vs 85% inconsistency | Low | Medium | Correctness |
-| R3 | Extract reflexion prompts to templates | Low | Medium | Maintainability |
-| R4 | Unit tests for cluster/upgrade/replication/ceph | Medium | High | Test coverage |
-| R5 | Parallel test execution (`--parallel N`) | Medium | Medium | Developer experience |
-| R6 | File locking for concurrent batch runs | Low | Low | Correctness |
-| R7 | Pin Docker images with env var overrides | Low | Low | Operational |
-| R8 | Fix SSE partial tool args (continue vs break) | Low | Medium | Correctness |
-| R9 | System prompt size guard for small-context models | Low | Low | Robustness |
-| R10 | VERSION bump automation script | Low | Low | Tooling |
+| # | Recommendation | Effort | Priority | Category | Status |
+|---|---------------|--------|----------|----------|--------|
+| R1 | Decompose `_run_batch()` 973 lines | Medium | High | Code maintainability | |
+| R2 | Fix context trim 80% vs 85% inconsistency | Low | Medium | Correctness | |
+| R3 | Extract reflexion prompts to templates | Low | Medium | Maintainability | |
+| R4 | Unit tests for cluster/upgrade/replication/ceph | Medium | High | Test coverage | **FIXED** |
+| R5 | Parallel test execution (`--parallel N`) | Medium | Medium | Developer experience | **FIXED** |
+| R6 | File locking for concurrent batch runs | Low | Low | Correctness | **FIXED** (already implemented) |
+| R7 | Pin Docker images with env var overrides | Low | Low | Operational | **FIXED** |
+| R8 | Fix SSE partial tool args (continue vs break) | Low | Medium | Correctness | **FIXED** |
+| R9 | System prompt size guard for small-context models | Low | Low | Robustness | |
+| R10 | VERSION bump automation script | Low | Low | Tooling | **FIXED** |
 
 ---
 
